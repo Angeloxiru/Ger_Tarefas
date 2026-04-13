@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Painel - Sistema de Atividades</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="header">
+    <h1>Painel de Tarefas</h1>
+    <div>
+      <span class="user-info"></span>
+      <button class="btn-logout">Sair</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Mensagem de status -->
+    <div id="msg" class="msg hidden"></div>
+
+    <!-- Loading -->
+    <div id="loading" class="loading visivel">
+      <div class="spinner"></div>
+      <p>Carregando...</p>
+    </div>
+
+    <!-- Lista de tarefas (quando nao tem tarefa em andamento) -->
+    <div id="secao-tarefas" class="hidden">
+      <h2 class="card-title mb-12">Selecione uma tarefa:</h2>
+      <div id="lista-tarefas" class="task-list"></div>
+    </div>
+
+    <!-- Tarefa em andamento -->
+    <div id="secao-ativa" class="hidden">
+      <div class="card active-task">
+        <div class="task-label">Tarefa em andamento</div>
+        <div id="tarefa-nome" class="task-title"></div>
+
+        <!-- Alerta de timeout -->
+        <div id="alerta-timeout" class="alerta-timeout">
+          Atencao: tarefa aberta ha mais de 3 horas. Deseja finalizar?
+        </div>
+
+        <!-- Cronometro -->
+        <div id="cronometro" class="cronometro verde">00:00:00</div>
+
+        <!-- Informacoes da carga (se aplicavel) -->
+        <div id="carga-info" class="carga-info hidden">
+          <div class="info-row">
+            <span class="label">Carga:</span>
+            <span id="carga-numero" class="value"></span>
+          </div>
+          <div class="info-row">
+            <span class="label">Total de volumes:</span>
+            <span id="carga-volumes" class="value"></span>
+          </div>
+        </div>
+
+        <!-- Distribuicao de volumes entre trabalhadores -->
+        <div id="workers-carga" class="hidden"></div>
+
+        <!-- Botao finalizar -->
+        <button id="btn-finalizar" class="btn btn-danger btn-lg mt-16" onclick="finalizarTarefa()">
+          Finalizar Tarefa
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/tarefas.js"></script>
+  <script src="js/carregamento.js"></script>
+  <script>
+    let funcionario = null;
+    let registroAtual = null;
+
+    // Inicializacao
+    async function init() {
+      if (!Auth.verificarAuth('painel')) return;
+
+      funcionario = Auth.obterSessao();
+      Auth.atualizarHeader();
+
+      await verificarStatus();
+    }
+
+    // Verificar se tem tarefa em andamento
+    async function verificarStatus() {
+      mostrarLoading(true);
+
+      const resultado = await Tarefas.verificarStatus(funcionario.codigo);
+
+      mostrarLoading(false);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      if (resultado.dados.tarefa_ativa) {
+        registroAtual = resultado.dados.tarefa_ativa;
+        mostrarTarefaAtiva(registroAtual);
+      } else {
+        await carregarTarefas();
+      }
+    }
+
+    // Carregar lista de tarefas disponiveis
+    async function carregarTarefas() {
+      mostrarLoading(true);
+
+      const resultado = await Tarefas.listarTarefas();
+
+      mostrarLoading(false);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      renderizarTarefas(resultado.dados);
+    }
+
+    // Renderizar lista de tarefas
+    function renderizarTarefas(tarefas) {
+      const container = document.getElementById('lista-tarefas');
+
+      if (!tarefas || tarefas.length === 0) {
+        container.innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponivel.</p></div>';
+        mostrarSecao('tarefas');
+        return;
+      }
+
+      container.innerHTML = tarefas.map(tarefa => `
+        <div class="task-item" onclick="iniciarTarefa('${tarefa.id_tarefa}', '${tarefa.nome}', ${tarefa.usa_qrcode_carga})">
+          <span class="task-name">${tarefa.nome}</span>
+          <span class="task-arrow">&rsaquo;</span>
+        </div>
+      `).join('');
+
+      mostrarSecao('tarefas');
+    }
+
+    // Iniciar uma tarefa
+    async function iniciarTarefa(idTarefa, nomeTarefa, usaQrcodeCarga) {
+      // Se a tarefa usa QRcode de carga, redirecionar para tela de carregamento
+      if (usaQrcodeCarga) {
+        sessionStorage.setItem('tarefa_carregamento', JSON.stringify({
+          id_tarefa: idTarefa,
+          nome: nomeTarefa
+        }));
+        window.location.href = 'carregamento.html';
+        return;
+      }
+
+      mostrarLoading(true);
+
+      const resultado = await Tarefas.iniciarTarefa(funcionario.codigo, idTarefa);
+
+      mostrarLoading(false);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      registroAtual = resultado.dados;
+      mostrarTarefaAtiva(registroAtual);
+      mostrarMsg('Tarefa iniciada com sucesso!', 'success');
+    }
+
+    // Mostrar tarefa em andamento
+    function mostrarTarefaAtiva(registro) {
+      document.getElementById('tarefa-nome').textContent = registro.nome_tarefa;
+
+      // Iniciar cronometro
+      Tarefas.iniciarCronometro(registro.data_inicio, 'cronometro');
+
+      // Se tem dados de carga, mostrar
+      if (registro.carga) {
+        document.getElementById('carga-info').classList.remove('hidden');
+        document.getElementById('carga-numero').textContent = registro.carga.numero_carga;
+        document.getElementById('carga-volumes').textContent = registro.carga.qtd_volumes;
+
+        // Iniciar monitoramento de workers na mesma carga
+        Carregamento.iniciarMonitoramento(
+          registro.carga.numero_carga,
+          registro.carga.qtd_volumes,
+          'workers-carga'
+        );
+      }
+
+      mostrarSecao('ativa');
+    }
+
+    // Finalizar tarefa
+    async function finalizarTarefa() {
+      if (!registroAtual) return;
+
+      const confirmar = confirm('Deseja realmente finalizar esta tarefa?');
+      if (!confirmar) return;
+
+      mostrarLoading(true);
+      document.getElementById('btn-finalizar').disabled = true;
+
+      const resultado = await Tarefas.finalizarTarefa(funcionario.codigo, registroAtual.id_registro);
+
+      document.getElementById('btn-finalizar').disabled = false;
+      mostrarLoading(false);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      // Parar cronometro e monitoramento
+      Tarefas.pararCronometro();
+      Carregamento.pararMonitoramento();
+
+      // Se tinha carga com distribuicao, mostrar resultado final
+      if (resultado.dados && resultado.dados.distribuicao) {
+        const dist = resultado.dados.distribuicao;
+        const meuVolume = dist.find(d => d.codigo_func === funcionario.codigo);
+        if (meuVolume) {
+          alert(`Tarefa finalizada!\nSeus volumes: ${meuVolume.volumes_proporcionais} (${meuVolume.percentual}%)`);
+        }
+      }
+
+      registroAtual = null;
+
+      mostrarMsg('Tarefa finalizada com sucesso!', 'success');
+      await carregarTarefas();
+    }
+
+    // Alternar secoes
+    function mostrarSecao(secao) {
+      document.getElementById('secao-tarefas').classList.toggle('hidden', secao !== 'tarefas');
+      document.getElementById('secao-ativa').classList.toggle('hidden', secao !== 'ativa');
+    }
+
+    function mostrarLoading(visivel) {
+      document.getElementById('loading').classList.toggle('visivel', visivel);
+    }
+
+    function mostrarMsg(texto, tipo) {
+      const el = document.getElementById('msg');
+      if (!texto) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = texto;
+      el.className = `msg msg-${tipo}`;
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    // Iniciar
+    init();
+  </script>
+</body>
+</html>

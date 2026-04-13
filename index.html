@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Login - Sistema de Atividades</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo">Sistema de Atividades</div>
+    <p class="subtitle">Escaneie seu cracha para entrar</p>
+
+    <div class="scan-area">
+      <div id="reader"></div>
+    </div>
+
+    <button id="btn-scan" class="btn btn-primary btn-lg" onclick="iniciarScan()">
+      Escanear Cracha
+    </button>
+
+    <div class="input-group mt-16">
+      <input type="text" id="codigo-manual" class="input-text" placeholder="Codigo do cracha"
+        maxlength="10" autocomplete="off">
+      <button class="btn btn-primary" onclick="loginManual()" style="width:auto;padding:12px 20px;">
+        Entrar
+      </button>
+    </div>
+
+    <div id="login-msg" class="login-msg"></div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Verificando...</p>
+    </div>
+  </div>
+
+  <script src="libs/html5-qrcode.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/scanner.js"></script>
+  <script>
+    // Verificar se ja esta logado
+    if (Auth.estaLogado()) {
+      const func = Auth.obterSessao();
+      if (func.perfil === 'gestor') {
+        window.location.href = 'gestor.html';
+      } else {
+        window.location.href = 'painel.html';
+      }
+    }
+
+    let scanAtivo = false;
+
+    async function iniciarScan() {
+      if (scanAtivo) {
+        await Scanner.parar();
+        scanAtivo = false;
+        document.getElementById('btn-scan').textContent = 'Escanear Cracha';
+        return;
+      }
+
+      mostrarMsg('Posicione o QRcode na camera...', 'info');
+
+      const sucesso = await Scanner.iniciar('reader', async (codigo) => {
+        scanAtivo = false;
+        document.getElementById('btn-scan').textContent = 'Escanear Cracha';
+        await fazerLogin(codigo);
+      });
+
+      if (sucesso) {
+        scanAtivo = true;
+        document.getElementById('btn-scan').textContent = 'Parar Camera';
+      } else {
+        mostrarMsg('Nao foi possivel acessar a camera. Use o campo manual.', 'error');
+      }
+    }
+
+    async function loginManual() {
+      const codigo = document.getElementById('codigo-manual').value.trim();
+      if (!codigo) {
+        mostrarMsg('Digite o codigo do cracha.', 'warning');
+        return;
+      }
+      await fazerLogin(codigo);
+    }
+
+    async function fazerLogin(codigo) {
+      mostrarMsg('', '');
+      document.getElementById('loading').classList.add('visivel');
+
+      const resultado = await Auth.login(codigo);
+
+      document.getElementById('loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+      }
+    }
+
+    function mostrarMsg(texto, tipo) {
+      const el = document.getElementById('login-msg');
+      el.textContent = texto;
+      el.className = 'login-msg';
+      if (tipo) {
+        el.classList.add(`msg-${tipo}`);
+      }
+    }
+
+    // Permitir Enter no campo manual
+    document.getElementById('codigo-manual').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') loginManual();
+    });
+  </script>
+</body>
+</html>

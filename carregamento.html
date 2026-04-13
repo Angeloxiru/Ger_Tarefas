@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Carregamento - Sistema de Atividades</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="header">
+    <h1>Carregamento</h1>
+    <div>
+      <span class="user-info"></span>
+      <button class="btn-logout">Sair</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Mensagem -->
+    <div id="msg" class="msg hidden"></div>
+
+    <!-- Loading -->
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Processando...</p>
+    </div>
+
+    <!-- Etapa 1: Scan do QRcode da carga -->
+    <div id="etapa-scan" class="card">
+      <h2 class="card-title text-center mb-12">Escaneie o QRcode da carga</h2>
+
+      <div class="scan-area" style="margin:0 auto;max-width:300px;">
+        <div id="reader"></div>
+      </div>
+
+      <button id="btn-scan-carga" class="btn btn-primary btn-lg mt-12" onclick="iniciarScanCarga()">
+        Escanear Carga
+      </button>
+
+      <div class="mt-12">
+        <p class="text-center mb-8" style="font-size:0.85rem;color:#666;">Ou insira manualmente:</p>
+        <div class="form-group">
+          <label>Numero da carga</label>
+          <input type="text" id="input-numero-carga" class="input-text" placeholder="Ex: CG-2024-00158">
+        </div>
+        <div class="form-group">
+          <label>Quantidade de volumes</label>
+          <input type="number" id="input-qtd-volumes" class="input-text" placeholder="Ex: 45" min="1">
+        </div>
+        <button class="btn btn-primary mt-8" onclick="registrarManual()">
+          Registrar Carga
+        </button>
+      </div>
+
+      <button class="btn btn-secondary mt-12" onclick="voltarPainel()">
+        Voltar ao Painel
+      </button>
+    </div>
+
+    <!-- Etapa 2: Carga registrada, tarefa em andamento -->
+    <div id="etapa-andamento" class="hidden">
+      <div class="card active-task">
+        <div class="task-label">Carregamento em andamento</div>
+        <div id="tarefa-nome" class="task-title"></div>
+
+        <!-- Alerta de timeout -->
+        <div id="alerta-timeout" class="alerta-timeout">
+          Atencao: tarefa aberta ha mais de 3 horas. Deseja finalizar?
+        </div>
+
+        <!-- Cronometro -->
+        <div id="cronometro" class="cronometro verde">00:00:00</div>
+
+        <!-- Info da carga -->
+        <div class="carga-info">
+          <div class="info-row">
+            <span class="label">Carga:</span>
+            <span id="carga-numero" class="value"></span>
+          </div>
+          <div class="info-row">
+            <span class="label">Total de volumes:</span>
+            <span id="carga-volumes-total" class="value"></span>
+          </div>
+        </div>
+
+        <!-- Aviso de carga compartilhada -->
+        <div id="aviso-compartilhada" class="carga-workers hidden">
+          <div class="workers-title">Esta carga esta sendo trabalhada por mais funcionarios</div>
+          <p style="font-size:0.8rem;color:#666;">
+            Os volumes serao distribuidos proporcionalmente ao tempo de execucao de cada trabalhador.
+          </p>
+        </div>
+
+        <!-- Distribuicao de volumes em tempo real -->
+        <div id="workers-carga"></div>
+
+        <!-- Botao finalizar -->
+        <button id="btn-finalizar" class="btn btn-danger btn-lg mt-16" onclick="finalizarCarregamento()">
+          Finalizar Carregamento
+        </button>
+      </div>
+    </div>
+
+    <!-- Etapa 3: Resultado final -->
+    <div id="etapa-resultado" class="hidden">
+      <div class="card text-center">
+        <h2 class="card-title mb-12">Carregamento Finalizado!</h2>
+
+        <div id="resultado-info" class="carga-info mb-12"></div>
+
+        <div id="resultado-distribuicao"></div>
+
+        <button class="btn btn-primary btn-lg mt-16" onclick="voltarPainel()">
+          Voltar ao Painel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="libs/html5-qrcode.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/tarefas.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/carregamento.js"></script>
+  <script>
+    let funcionario = null;
+    let tarefaCarregamento = null;
+    let registroAtual = null;
+    let dadosCarga = null;
+    let scanAtivo = false;
+
+    // Inicializacao
+    function init() {
+      if (!Auth.verificarAuth('painel')) return;
+
+      funcionario = Auth.obterSessao();
+      Auth.atualizarHeader();
+
+      // Obter dados da tarefa de carregamento
+      const tarefaStr = sessionStorage.getItem('tarefa_carregamento');
+      if (!tarefaStr) {
+        window.location.href = 'painel.html';
+        return;
+      }
+      tarefaCarregamento = JSON.parse(tarefaStr);
+    }
+
+    // Iniciar scan da carga
+    async function iniciarScanCarga() {
+      if (scanAtivo) {
+        await Scanner.parar();
+        scanAtivo = false;
+        document.getElementById('btn-scan-carga').textContent = 'Escanear Carga';
+        return;
+      }
+
+      mostrarMsg('Posicione o QRcode da carga na camera...', 'info');
+
+      const sucesso = await Scanner.iniciar('reader', async (texto) => {
+        scanAtivo = false;
+        document.getElementById('btn-scan-carga').textContent = 'Escanear Carga';
+        await processarQRCarga(texto);
+      });
+
+      if (sucesso) {
+        scanAtivo = true;
+        document.getElementById('btn-scan-carga').textContent = 'Parar Camera';
+      } else {
+        mostrarMsg('Nao foi possivel acessar a camera. Use os campos manuais.', 'error');
+      }
+    }
+
+    // Processar QRcode da carga
+    async function processarQRCarga(texto) {
+      const dados = Scanner.parsearCarga(texto);
+
+      if (!dados) {
+        mostrarMsg('QRcode invalido. Formato esperado: NUMERO_CARGA|QTD_VOLUMES', 'error');
+        return;
+      }
+
+      await registrarCarga(dados.numero_carga, dados.qtd_volumes);
+    }
+
+    // Registrar carga manualmente
+    async function registrarManual() {
+      const numeroCarga = document.getElementById('input-numero-carga').value.trim();
+      const qtdVolumes = parseInt(document.getElementById('input-qtd-volumes').value, 10);
+
+      if (!numeroCarga) {
+        mostrarMsg('Informe o numero da carga.', 'warning');
+        return;
+      }
+
+      if (!qtdVolumes || qtdVolumes <= 0) {
+        mostrarMsg('Informe uma quantidade de volumes valida.', 'warning');
+        return;
+      }
+
+      await registrarCarga(numeroCarga, qtdVolumes);
+    }
+
+    // Registrar carga no sistema
+    async function registrarCarga(numeroCarga, qtdVolumes) {
+      mostrarLoading(true);
+
+      // Primeiro, iniciar a tarefa
+      const resultadoTarefa = await Tarefas.iniciarTarefa(
+        funcionario.codigo,
+        tarefaCarregamento.id_tarefa
+      );
+
+      if (!resultadoTarefa.sucesso) {
+        mostrarLoading(false);
+        mostrarMsg(resultadoTarefa.mensagem, 'error');
+        return;
+      }
+
+      registroAtual = resultadoTarefa.dados;
+
+      // Registrar a carga
+      const resultadoCarga = await Carregamento.registrarCarga(
+        funcionario.codigo,
+        registroAtual.id_registro,
+        numeroCarga,
+        qtdVolumes
+      );
+
+      mostrarLoading(false);
+
+      if (!resultadoCarga.sucesso) {
+        mostrarMsg(resultadoCarga.mensagem, 'error');
+        return;
+      }
+
+      dadosCarga = {
+        numero_carga: numeroCarga,
+        qtd_volumes: qtdVolumes
+      };
+
+      // Limpar dados da tarefa no sessionStorage
+      sessionStorage.removeItem('tarefa_carregamento');
+
+      // Mostrar tela de andamento
+      mostrarAndamento();
+    }
+
+    // Mostrar tela de carregamento em andamento
+    function mostrarAndamento() {
+      document.getElementById('tarefa-nome').textContent =
+        dadosCarga.numero_carga;
+      document.getElementById('carga-numero').textContent = dadosCarga.numero_carga;
+      document.getElementById('carga-volumes-total').textContent = dadosCarga.qtd_volumes;
+
+      // Iniciar cronometro
+      Tarefas.iniciarCronometro(registroAtual.data_inicio, 'cronometro');
+
+      // Iniciar monitoramento de outros workers na mesma carga
+      Carregamento.iniciarMonitoramento(
+        dadosCarga.numero_carga,
+        dadosCarga.qtd_volumes,
+        'workers-carga'
+      );
+
+      mostrarEtapa('andamento');
+    }
+
+    // Finalizar carregamento
+    async function finalizarCarregamento() {
+      if (!registroAtual) return;
+
+      const confirmar = confirm('Deseja realmente finalizar este carregamento?');
+      if (!confirmar) return;
+
+      mostrarLoading(true);
+      document.getElementById('btn-finalizar').disabled = true;
+
+      const resultado = await Tarefas.finalizarTarefa(
+        funcionario.codigo,
+        registroAtual.id_registro
+      );
+
+      document.getElementById('btn-finalizar').disabled = false;
+      mostrarLoading(false);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      // Parar cronometro e monitoramento
+      Tarefas.pararCronometro();
+      Carregamento.pararMonitoramento();
+
+      // Mostrar resultado final com distribuicao
+      mostrarResultado(resultado.dados);
+    }
+
+    // Mostrar resultado final
+    function mostrarResultado(dados) {
+      const infoHtml = `
+        <div class="info-row">
+          <span class="label">Carga:</span>
+          <span class="value">${dadosCarga.numero_carga}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Total de volumes:</span>
+          <span class="value">${dadosCarga.qtd_volumes}</span>
+        </div>
+      `;
+      document.getElementById('resultado-info').innerHTML = infoHtml;
+
+      // Se tem distribuicao, renderizar
+      if (dados && dados.distribuicao && dados.distribuicao.length > 1) {
+        Carregamento.renderizarWorkers(
+          'resultado-distribuicao',
+          dados.distribuicao.map(d => ({
+            ...d,
+            data_inicio: d.data_inicio,
+            data_fim: d.data_fim,
+            status: 'finalizada'
+          })),
+          dadosCarga.qtd_volumes
+        );
+      } else {
+        document.getElementById('resultado-distribuicao').innerHTML = `
+          <div class="msg msg-success">
+            Todos os ${dadosCarga.qtd_volumes} volumes atribuidos a voce.
+          </div>
+        `;
+      }
+
+      mostrarEtapa('resultado');
+    }
+
+    // Voltar ao painel
+    function voltarPainel() {
+      sessionStorage.removeItem('tarefa_carregamento');
+      window.location.href = 'painel.html';
+    }
+
+    // Alternar etapas
+    function mostrarEtapa(etapa) {
+      document.getElementById('etapa-scan').classList.toggle('hidden', etapa !== 'scan');
+      document.getElementById('etapa-andamento').classList.toggle('hidden', etapa !== 'andamento');
+      document.getElementById('etapa-resultado').classList.toggle('hidden', etapa !== 'resultado');
+    }
+
+    function mostrarLoading(visivel) {
+      document.getElementById('loading').classList.toggle('visivel', visivel);
+    }
+
+    function mostrarMsg(texto, tipo) {
+      const el = document.getElementById('msg');
+      if (!texto) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = texto;
+      el.className = `msg msg-${tipo}`;
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    // Iniciar
+    init();
+  </script>
+</body>
+</html>
