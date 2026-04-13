@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gestor - Sistema de Atividades</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="header">
+    <h1>Painel do Gestor</h1>
+    <div>
+      <span class="user-info"></span>
+      <button class="btn-logout">Sair</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Mensagem -->
+    <div id="msg" class="msg hidden"></div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab ativo" data-tab="tempo-real" onclick="trocarTab('tempo-real')">Tempo Real</button>
+      <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Historico</button>
+      <button class="tab" data-tab="cadastro" onclick="trocarTab('cadastro')">Cadastro</button>
+    </div>
+
+    <!-- Tab: Tempo Real -->
+    <div id="tab-tempo-real" class="tab-content ativo">
+      <!-- Filtros -->
+      <div class="gestor-filters">
+        <select id="filtro-tarefa" onchange="atualizarPainel()">
+          <option value="">Todas as tarefas</option>
+        </select>
+        <select id="filtro-status" onchange="atualizarPainel()">
+          <option value="">Todos os status</option>
+          <option value="ocioso">Ocioso</option>
+          <option value="em_andamento">Em andamento</option>
+          <option value="alerta">Em alerta</option>
+          <option value="timeout">Timeout</option>
+        </select>
+      </div>
+
+      <!-- Resumo -->
+      <div class="card" style="display:flex;gap:12px;justify-content:space-around;text-align:center;">
+        <div>
+          <div id="total-func" style="font-size:1.5rem;font-weight:700;color:#1a73e8;">-</div>
+          <div style="font-size:0.75rem;color:#666;">Total</div>
+        </div>
+        <div>
+          <div id="total-ativos" style="font-size:1.5rem;font-weight:700;color:#0d9f6e;">-</div>
+          <div style="font-size:0.75rem;color:#666;">Ativos</div>
+        </div>
+        <div>
+          <div id="total-ociosos" style="font-size:1.5rem;font-weight:700;color:#9ca3af;">-</div>
+          <div style="font-size:0.75rem;color:#666;">Ociosos</div>
+        </div>
+        <div>
+          <div id="total-alertas" style="font-size:1.5rem;font-weight:700;color:#ef4444;">-</div>
+          <div style="font-size:0.75rem;color:#666;">Alertas</div>
+        </div>
+      </div>
+
+      <!-- Lista de funcionarios -->
+      <div id="lista-funcionarios">
+        <div class="loading visivel">
+          <div class="spinner"></div>
+          <p>Carregando...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Historico -->
+    <div id="tab-historico" class="tab-content">
+      <div class="card">
+        <div class="form-group">
+          <label>Data inicio</label>
+          <input type="date" id="hist-data-inicio">
+        </div>
+        <div class="form-group">
+          <label>Data fim</label>
+          <input type="date" id="hist-data-fim">
+        </div>
+        <button class="btn btn-primary" onclick="buscarHistorico()">Buscar</button>
+      </div>
+
+      <div id="tabela-historico"></div>
+    </div>
+
+    <!-- Tab: Cadastro -->
+    <div id="tab-cadastro" class="tab-content">
+      <!-- Cadastro de funcionario -->
+      <div class="card">
+        <h3 class="card-title mb-12">Novo Funcionario</h3>
+        <div class="form-group">
+          <label>Codigo (cracha)</label>
+          <input type="text" id="cad-func-codigo" placeholder="Ex: PL4" maxlength="10">
+        </div>
+        <div class="form-group">
+          <label>Nome completo</label>
+          <input type="text" id="cad-func-nome" placeholder="Ex: Angelo Lopes">
+        </div>
+        <div class="form-group">
+          <label>Cargo</label>
+          <input type="text" id="cad-func-cargo" placeholder="Ex: Operador">
+        </div>
+        <div class="form-group">
+          <label>Perfil</label>
+          <select id="cad-func-perfil">
+            <option value="funcionario">Funcionario</option>
+            <option value="gestor">Gestor</option>
+          </select>
+        </div>
+        <button class="btn btn-success" onclick="cadastrarFuncionario()">Cadastrar Funcionario</button>
+      </div>
+
+      <!-- Cadastro de tarefa -->
+      <div class="card mt-12">
+        <h3 class="card-title mb-12">Nova Tarefa</h3>
+        <div class="form-group">
+          <label>Nome da tarefa</label>
+          <input type="text" id="cad-tarefa-nome" placeholder="Ex: Conferencia">
+        </div>
+        <div class="form-group">
+          <label>Usa QRcode de carga?</label>
+          <select id="cad-tarefa-qrcode">
+            <option value="false">Nao</option>
+            <option value="true">Sim</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tempo maximo (minutos)</label>
+          <input type="number" id="cad-tarefa-tempo" placeholder="240" min="1" value="240">
+        </div>
+        <button class="btn btn-success" onclick="cadastrarTarefa()">Cadastrar Tarefa</button>
+      </div>
+    </div>
+
+    <!-- Modal de distribuicao de carga -->
+    <div id="modal-distribuicao" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-title">Distribuicao de Volumes</div>
+        <div id="modal-dist-content"></div>
+        <button class="btn btn-secondary mt-12" onclick="fecharModal()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/tarefas.js"></script>
+  <script src="js/carregamento.js"></script>
+  <script src="js/gestor.js"></script>
+  <script>
+    let funcionario = null;
+
+    // Inicializacao
+    async function init() {
+      if (!Auth.verificarAuth('gestor')) return;
+
+      funcionario = Auth.obterSessao();
+      Auth.atualizarHeader();
+
+      // Definir datas padrao do historico
+      const hoje = new Date();
+      const mesPassado = new Date(hoje);
+      mesPassado.setMonth(mesPassado.getMonth() - 1);
+
+      document.getElementById('hist-data-fim').value = hoje.toISOString().split('T')[0];
+      document.getElementById('hist-data-inicio').value = mesPassado.toISOString().split('T')[0];
+
+      await atualizarPainel();
+
+      // Atualizacao automatica
+      Gestor.iniciarAtualizacao(atualizarPainel);
+    }
+
+    // Atualizar painel em tempo real
+    async function atualizarPainel() {
+      const filtros = {
+        tarefa: document.getElementById('filtro-tarefa').value,
+        status: document.getElementById('filtro-status').value
+      };
+
+      const resultado = await Gestor.buscarPainel(filtros);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      const dados = resultado.dados;
+
+      // Atualizar contadores
+      document.getElementById('total-func').textContent = dados.total || 0;
+      document.getElementById('total-ativos').textContent = dados.ativos || 0;
+      document.getElementById('total-ociosos').textContent = dados.ociosos || 0;
+      document.getElementById('total-alertas').textContent = dados.alertas || 0;
+
+      // Atualizar filtro de tarefas (somente na primeira carga)
+      const filtroTarefa = document.getElementById('filtro-tarefa');
+      if (filtroTarefa.options.length <= 1 && dados.tarefas) {
+        dados.tarefas.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.id_tarefa;
+          opt.textContent = t.nome;
+          filtroTarefa.appendChild(opt);
+        });
+      }
+
+      // Renderizar funcionarios
+      Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios);
+    }
+
+    // Buscar historico
+    async function buscarHistorico() {
+      const dataInicio = document.getElementById('hist-data-inicio').value;
+      const dataFim = document.getElementById('hist-data-fim').value;
+
+      if (!dataInicio || !dataFim) {
+        mostrarMsg('Selecione as datas de inicio e fim.', 'warning');
+        return;
+      }
+
+      const resultado = await Gestor.buscarHistorico(dataInicio, dataFim);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      Gestor.renderizarHistorico('tabela-historico', resultado.dados);
+    }
+
+    // Cadastrar funcionario
+    async function cadastrarFuncionario() {
+      const dados = {
+        codigo: document.getElementById('cad-func-codigo').value.trim().toUpperCase(),
+        nome: document.getElementById('cad-func-nome').value.trim(),
+        cargo: document.getElementById('cad-func-cargo').value.trim(),
+        perfil: document.getElementById('cad-func-perfil').value
+      };
+
+      if (!dados.codigo || !dados.nome || !dados.cargo) {
+        mostrarMsg('Preencha todos os campos.', 'warning');
+        return;
+      }
+
+      const resultado = await Gestor.cadastrarFuncionario(dados);
+
+      if (resultado.sucesso) {
+        mostrarMsg('Funcionario cadastrado com sucesso!', 'success');
+        document.getElementById('cad-func-codigo').value = '';
+        document.getElementById('cad-func-nome').value = '';
+        document.getElementById('cad-func-cargo').value = '';
+      } else {
+        mostrarMsg(resultado.mensagem, 'error');
+      }
+    }
+
+    // Cadastrar tarefa
+    async function cadastrarTarefa() {
+      const dados = {
+        nome: document.getElementById('cad-tarefa-nome').value.trim(),
+        usa_qrcode_carga: document.getElementById('cad-tarefa-qrcode').value === 'true',
+        tempo_maximo_min: parseInt(document.getElementById('cad-tarefa-tempo').value, 10) || 240
+      };
+
+      if (!dados.nome) {
+        mostrarMsg('Informe o nome da tarefa.', 'warning');
+        return;
+      }
+
+      const resultado = await Gestor.cadastrarTarefa(dados);
+
+      if (resultado.sucesso) {
+        mostrarMsg('Tarefa cadastrada com sucesso!', 'success');
+        document.getElementById('cad-tarefa-nome').value = '';
+      } else {
+        mostrarMsg(resultado.mensagem, 'error');
+      }
+    }
+
+    // Trocar tabs
+    function trocarTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('ativo'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('ativo'));
+
+      document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('ativo');
+      document.getElementById(`tab-${tabId}`).classList.add('ativo');
+    }
+
+    // Modal de distribuicao
+    function fecharModal() {
+      document.getElementById('modal-distribuicao').classList.remove('visivel');
+    }
+
+    function mostrarMsg(texto, tipo) {
+      const el = document.getElementById('msg');
+      if (!texto) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.textContent = texto;
+      el.className = `msg msg-${tipo}`;
+      setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    // Iniciar
+    init();
+  </script>
+</body>
+</html>
