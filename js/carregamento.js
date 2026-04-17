@@ -4,62 +4,28 @@
 const Carregamento = {
   intervaloWorkers: null,
 
-  // Registrar leitura de QRcode de carga
   async registrarCarga(codigoFunc, idRegistro, numeroCarga, qtdVolumes) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(CONFIG.API_URL, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          acao: 'registrar_carga',
-          codigo_func: codigoFunc,
-          id_registro: idRegistro,
-          numero_carga: numeroCarga,
-          qtd_volumes: qtdVolumes
-        })
-      });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
-    }
+    return await API.get({
+      acao: 'registrar_carga',
+      codigo_func: codigoFunc,
+      id_registro: idRegistro,
+      numero_carga: numeroCarga,
+      qtd_volumes: qtdVolumes
+    });
   },
 
-  // Buscar trabalhadores na mesma carga
   async buscarWorkersCarga(numeroCarga) {
-    try {
-      const url = `${CONFIG.API_URL}?acao=workers_carga&numero_carga=${encodeURIComponent(numeroCarga)}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
-    }
+    return await API.get({
+      acao: 'workers_carga',
+      numero_carga: numeroCarga
+    });
   },
 
-  // Calcular distribuicao proporcional de volumes
-  // Cada trabalhador recebe volumes proporcionais ao seu tempo de execucao
   calcularDistribuicao(workers, totalVolumes) {
     if (!workers || workers.length === 0) return [];
 
     const agora = Date.now();
 
-    // Calcular tempo de cada worker
     const workersComTempo = workers.map(w => {
       const inicio = new Date(w.data_inicio).getTime();
       let fim;
@@ -70,22 +36,16 @@ const Carregamento = {
         fim = agora;
       }
 
-      const tempoMs = Math.max(fim - inicio, 60000); // Minimo 1 minuto
-      return {
-        ...w,
-        tempo_ms: tempoMs
-      };
+      const tempoMs = Math.max(fim - inicio, 60000);
+      return { ...w, tempo_ms: tempoMs };
     });
 
-    // Calcular tempo total de todos os workers
     const tempoTotal = workersComTempo.reduce((acc, w) => acc + w.tempo_ms, 0);
 
-    // Distribuir volumes proporcionalmente
     let volumesDistribuidos = 0;
     const resultado = workersComTempo.map((w, index) => {
       let volumesProporcional;
 
-      // Ultimo worker recebe o restante para evitar erros de arredondamento
       if (index === workersComTempo.length - 1) {
         volumesProporcional = totalVolumes - volumesDistribuidos;
       } else {
@@ -107,7 +67,6 @@ const Carregamento = {
     return resultado;
   },
 
-  // Renderizar informacoes dos trabalhadores na mesma carga
   renderizarWorkers(containerId, workers, totalVolumes) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -121,7 +80,6 @@ const Carregamento = {
     container.classList.remove('hidden');
 
     const distribuicao = this.calcularDistribuicao(workers, totalVolumes);
-
     const cores = ['#1a73e8', '#0d9f6e', '#f59e0b', '#8b5cf6', '#ec4899'];
 
     let barraHtml = distribuicao.map((w, i) => {
@@ -151,7 +109,6 @@ const Carregamento = {
     `;
   },
 
-  // Iniciar monitoramento periodico de workers na carga
   iniciarMonitoramento(numeroCarga, totalVolumes, containerId) {
     this.pararMonitoramento();
 
@@ -166,7 +123,6 @@ const Carregamento = {
     this.intervaloWorkers = setInterval(atualizar, CONFIG.INTERVALO_VERIFICAR_CARGA);
   },
 
-  // Parar monitoramento
   pararMonitoramento() {
     if (this.intervaloWorkers) {
       clearInterval(this.intervaloWorkers);
