@@ -11,19 +11,44 @@
     <div class="logo">Sistema de Atividades</div>
     <p class="subtitle">Escaneie seu cracha para entrar</p>
 
-    <div class="scan-area">
-      <div id="reader"></div>
+    <!-- Etapa 1: Identificacao -->
+    <div id="etapa-codigo">
+      <div class="scan-area">
+        <div id="reader"></div>
+      </div>
+
+      <button id="btn-scan" class="btn btn-primary btn-lg" onclick="iniciarScan()">
+        Escanear Cracha
+      </button>
+
+      <div class="input-group mt-16">
+        <input type="text" id="codigo-manual" class="input-text" placeholder="Codigo do cracha"
+          maxlength="10" autocomplete="off">
+        <button class="btn btn-primary" onclick="avancarParaSenha()" style="width:auto;padding:12px 20px;">
+          Proximo
+        </button>
+      </div>
     </div>
 
-    <button id="btn-scan" class="btn btn-primary btn-lg" onclick="iniciarScan()">
-      Escanear Cracha
-    </button>
+    <!-- Etapa 2: Senha -->
+    <div id="etapa-senha" class="hidden" style="width:100%;max-width:300px;">
+      <div class="card text-center mb-12">
+        <div style="font-size:0.85rem;color:#666;">Cracha:</div>
+        <div id="codigo-exibido" style="font-size:1.3rem;font-weight:700;color:#1a73e8;"></div>
+      </div>
 
-    <div class="input-group mt-16">
-      <input type="text" id="codigo-manual" class="input-text" placeholder="Codigo do cracha"
-        maxlength="10" autocomplete="off">
-      <button class="btn btn-primary" onclick="loginManual()" style="width:auto;padding:12px 20px;">
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="input-senha" class="input-text" placeholder="Digite sua senha"
+          autocomplete="current-password">
+      </div>
+
+      <button class="btn btn-primary btn-lg" onclick="fazerLogin()">
         Entrar
+      </button>
+
+      <button class="btn btn-outline mt-8" onclick="voltarCodigo()">
+        Voltar
       </button>
     </div>
 
@@ -41,7 +66,6 @@
   <script src="js/auth.js"></script>
   <script src="js/scanner.js"></script>
   <script>
-    // Verificar se ja esta logado
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
       if (func.perfil === 'gestor') {
@@ -52,6 +76,7 @@
     }
 
     let scanAtivo = false;
+    let codigoSelecionado = '';
 
     async function iniciarScan() {
       if (scanAtivo) {
@@ -66,7 +91,7 @@
       const sucesso = await Scanner.iniciar('reader', async (codigo) => {
         scanAtivo = false;
         document.getElementById('btn-scan').textContent = 'Escanear Cracha';
-        await fazerLogin(codigo);
+        mostrarEtapaSenha(codigo);
       });
 
       if (sucesso) {
@@ -77,20 +102,43 @@
       }
     }
 
-    async function loginManual() {
+    function avancarParaSenha() {
       const codigo = document.getElementById('codigo-manual').value.trim();
       if (!codigo) {
         mostrarMsg('Digite o codigo do cracha.', 'warning');
         return;
       }
-      await fazerLogin(codigo);
+      mostrarEtapaSenha(codigo);
     }
 
-    async function fazerLogin(codigo) {
+    function mostrarEtapaSenha(codigo) {
+      codigoSelecionado = codigo.toUpperCase();
+      document.getElementById('codigo-exibido').textContent = codigoSelecionado;
+      document.getElementById('etapa-codigo').classList.add('hidden');
+      document.getElementById('etapa-senha').classList.remove('hidden');
+      document.getElementById('input-senha').value = '';
+      document.getElementById('input-senha').focus();
+      mostrarMsg('', '');
+    }
+
+    function voltarCodigo() {
+      codigoSelecionado = '';
+      document.getElementById('etapa-senha').classList.add('hidden');
+      document.getElementById('etapa-codigo').classList.remove('hidden');
+      mostrarMsg('', '');
+    }
+
+    async function fazerLogin() {
+      const senha = document.getElementById('input-senha').value;
+      if (!senha) {
+        mostrarMsg('Digite sua senha.', 'warning');
+        return;
+      }
+
       mostrarMsg('', '');
       document.getElementById('loading').classList.add('visivel');
 
-      const resultado = await Auth.login(codigo);
+      const resultado = await Auth.login(codigoSelecionado, senha);
 
       document.getElementById('loading').classList.remove('visivel');
 
@@ -108,9 +156,12 @@
       }
     }
 
-    // Permitir Enter no campo manual
     document.getElementById('codigo-manual').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') loginManual();
+      if (e.key === 'Enter') avancarParaSenha();
+    });
+
+    document.getElementById('input-senha').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') fazerLogin();
     });
   </script>
 </body>

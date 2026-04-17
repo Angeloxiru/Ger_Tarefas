@@ -1,8 +1,12 @@
 // Auth.gs - Funcoes de autenticacao
 
-function Auth_login(codigo) {
+function Auth_login(codigo, senha) {
   if (!codigo) {
     return { sucesso: false, mensagem: 'Codigo do cracha nao informado.' };
+  }
+
+  if (!senha) {
+    return { sucesso: false, mensagem: 'Senha nao informada.' };
   }
 
   codigo = codigo.trim().toUpperCase();
@@ -11,19 +15,24 @@ function Auth_login(codigo) {
   var dados = sheet.getDataRange().getValues();
   var headers = dados[0];
 
-  // Encontrar indices das colunas
   var idxCodigo = headers.indexOf('codigo');
   var idxNome = headers.indexOf('nome');
   var idxCargo = headers.indexOf('cargo');
   var idxAtivo = headers.indexOf('ativo');
   var idxPerfil = headers.indexOf('perfil');
+  var idxSenha = headers.indexOf('senha');
 
   for (var i = 1; i < dados.length; i++) {
     var row = dados[i];
     if (String(row[idxCodigo]).trim().toUpperCase() === codigo) {
-      // Verificar se esta ativo
       if (!row[idxAtivo]) {
         return { sucesso: false, mensagem: 'Funcionario inativo. Procure o supervisor.' };
+      }
+
+      // Verificar senha
+      var senhaArmazenada = String(row[idxSenha]).trim();
+      if (senhaArmazenada !== senha.trim()) {
+        return { sucesso: false, mensagem: 'Senha incorreta.' };
       }
 
       return {

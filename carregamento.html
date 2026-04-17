@@ -133,7 +133,10 @@
 
     // Inicializacao
     function init() {
-      if (!Auth.verificarAuth('painel')) return;
+      if (!Auth.estaLogado()) {
+        window.location.href = 'index.html';
+        return;
+      }
 
       funcionario = Auth.obterSessao();
       Auth.atualizarHeader();
@@ -338,7 +341,12 @@
     // Voltar ao painel
     function voltarPainel() {
       sessionStorage.removeItem('tarefa_carregamento');
-      window.location.href = 'painel.html';
+      const func = Auth.obterSessao();
+      if (func && func.perfil === 'gestor') {
+        window.location.href = 'gestor.html';
+      } else {
+        window.location.href = 'painel.html';
+      }
     }
 
     // Alternar etapas
