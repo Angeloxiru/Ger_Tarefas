@@ -3,126 +3,46 @@
 const Gestor = {
   intervaloPainel: null,
 
-  // Buscar dados do painel
   async buscarPainel(filtros) {
-    try {
-      let url = `${CONFIG.API_URL}?acao=painel_gestor`;
-
-      if (filtros) {
-        if (filtros.tarefa) url += `&filtro_tarefa=${encodeURIComponent(filtros.tarefa)}`;
-        if (filtros.status) url += `&filtro_status=${encodeURIComponent(filtros.status)}`;
-        if (filtros.data) url += `&filtro_data=${encodeURIComponent(filtros.data)}`;
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
+    const params = { acao: 'painel_gestor' };
+    if (filtros) {
+      if (filtros.tarefa) params.filtro_tarefa = filtros.tarefa;
+      if (filtros.status) params.filtro_status = filtros.status;
+      if (filtros.data) params.filtro_data = filtros.data;
     }
+    return await API.get(params);
   },
 
-  // Buscar historico de registros
   async buscarHistorico(dataInicio, dataFim) {
-    try {
-      let url = `${CONFIG.API_URL}?acao=historico`;
-      if (dataInicio) url += `&data_inicio=${encodeURIComponent(dataInicio)}`;
-      if (dataFim) url += `&data_fim=${encodeURIComponent(dataFim)}`;
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
-    }
+    const params = { acao: 'historico' };
+    if (dataInicio) params.data_inicio = dataInicio;
+    if (dataFim) params.data_fim = dataFim;
+    return await API.get(params);
   },
 
-  // Cadastrar novo funcionario
   async cadastrarFuncionario(dados) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(CONFIG.API_URL, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          acao: 'cadastrar_funcionario',
-          ...dados
-        })
-      });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
-    }
+    return await API.get({
+      acao: 'cadastrar_funcionario',
+      ...dados
+    });
   },
 
-  // Cadastrar nova tarefa
   async cadastrarTarefa(dados) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(CONFIG.API_URL, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          acao: 'cadastrar_tarefa',
-          ...dados
-        })
-      });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
-    }
+    return await API.get({
+      acao: 'cadastrar_tarefa',
+      nome: dados.nome,
+      usa_qrcode_carga: String(dados.usa_qrcode_carga),
+      tempo_maximo_min: String(dados.tempo_maximo_min)
+    });
   },
 
-  // Buscar distribuicao de volumes de uma carga especifica
   async buscarDistribuicaoCarga(numeroCarga) {
-    try {
-      const url = `${CONFIG.API_URL}?acao=distribuicao_carga&numero_carga=${encodeURIComponent(numeroCarga)}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-      const resposta = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado.' };
-      }
-      return { sucesso: false, mensagem: 'Erro de conexao.' };
-    }
+    return await API.get({
+      acao: 'distribuicao_carga',
+      numero_carga: numeroCarga
+    });
   },
 
-  // Renderizar lista de funcionarios no painel
   renderizarFuncionarios(containerId, funcionarios) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -156,7 +76,6 @@ const Gestor = {
 
         tempoTexto = Tarefas.formatarDuracao(diff);
 
-        // Indicar se ha carga associada
         if (func.tarefa_atual.carga) {
           statusTexto += ` - ${func.tarefa_atual.carga.numero_carga}`;
           if (func.tarefa_atual.carga.total_workers > 1) {
@@ -178,7 +97,6 @@ const Gestor = {
     }).join('');
   },
 
-  // Renderizar historico em tabela
   renderizarHistorico(containerId, registros) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -231,13 +149,11 @@ const Gestor = {
     container.innerHTML = html;
   },
 
-  // Iniciar atualizacao automatica do painel
   iniciarAtualizacao(callback) {
     this.pararAtualizacao();
     this.intervaloPainel = setInterval(callback, CONFIG.INTERVALO_PAINEL_GESTOR);
   },
 
-  // Parar atualizacao automatica
   pararAtualizacao() {
     if (this.intervaloPainel) {
       clearInterval(this.intervaloPainel);
