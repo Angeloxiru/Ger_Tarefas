@@ -56,7 +56,7 @@ function inicializarPlanilha() {
   // Aba Funcionarios
   var sheetFunc = criarAbaSeNecessario(ss, 'Funcionarios');
   if (sheetFunc.getLastRow() === 0) {
-    sheetFunc.appendRow(['codigo', 'nome', 'cargo', 'ativo', 'perfil']);
+    sheetFunc.appendRow(['codigo', 'nome', 'cargo', 'ativo', 'perfil', 'senha']);
   }
 
   // Aba Tarefas

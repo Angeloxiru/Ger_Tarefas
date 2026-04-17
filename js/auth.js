@@ -24,10 +24,11 @@ const Auth = {
     window.location.href = 'index.html';
   },
 
-  async login(codigo) {
+  async login(codigo, senha) {
     const dados = await API.get({
       acao: 'login',
-      codigo: codigo.trim().toUpperCase()
+      codigo: codigo.trim().toUpperCase(),
+      senha: senha
     });
 
     if (dados.sucesso) {

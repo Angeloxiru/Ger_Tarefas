@@ -16,19 +16,18 @@
   </div>
 
   <div class="container">
-    <!-- Mensagem -->
     <div id="msg" class="msg hidden"></div>
 
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab ativo" data-tab="tempo-real" onclick="trocarTab('tempo-real')">Tempo Real</button>
+      <button class="tab" data-tab="tarefas" onclick="trocarTab('tarefas')">Tarefas</button>
       <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Historico</button>
       <button class="tab" data-tab="cadastro" onclick="trocarTab('cadastro')">Cadastro</button>
     </div>
 
     <!-- Tab: Tempo Real -->
     <div id="tab-tempo-real" class="tab-content ativo">
-      <!-- Filtros -->
       <div class="gestor-filters">
         <select id="filtro-tarefa" onchange="atualizarPainel()">
           <option value="">Todas as tarefas</option>
@@ -42,7 +41,6 @@
         </select>
       </div>
 
-      <!-- Resumo -->
       <div class="card" style="display:flex;gap:12px;justify-content:space-around;text-align:center;">
         <div>
           <div id="total-func" style="font-size:1.5rem;font-weight:700;color:#1a73e8;">-</div>
@@ -62,11 +60,55 @@
         </div>
       </div>
 
-      <!-- Lista de funcionarios -->
       <div id="lista-funcionarios">
         <div class="loading visivel">
           <div class="spinner"></div>
           <p>Carregando...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Tarefas (gestor executa tarefas) -->
+    <div id="tab-tarefas" class="tab-content">
+      <div id="gestor-loading" class="loading">
+        <div class="spinner"></div>
+        <p>Carregando...</p>
+      </div>
+
+      <!-- Lista de tarefas (quando nao tem tarefa ativa) -->
+      <div id="gestor-secao-tarefas" class="hidden">
+        <h2 class="card-title mb-12">Selecione uma tarefa:</h2>
+        <div id="gestor-lista-tarefas" class="task-list"></div>
+      </div>
+
+      <!-- Tarefa em andamento -->
+      <div id="gestor-secao-ativa" class="hidden">
+        <div class="card active-task">
+          <div class="task-label">Tarefa em andamento</div>
+          <div id="gestor-tarefa-nome" class="task-title"></div>
+
+          <div id="gestor-alerta-timeout" class="alerta-timeout">
+            Atencao: tarefa aberta ha mais de 3 horas. Deseja finalizar?
+          </div>
+
+          <div id="gestor-cronometro" class="cronometro verde">00:00:00</div>
+
+          <div id="gestor-carga-info" class="carga-info hidden">
+            <div class="info-row">
+              <span class="label">Carga:</span>
+              <span id="gestor-carga-numero" class="value"></span>
+            </div>
+            <div class="info-row">
+              <span class="label">Total de volumes:</span>
+              <span id="gestor-carga-volumes" class="value"></span>
+            </div>
+          </div>
+
+          <div id="gestor-workers-carga" class="hidden"></div>
+
+          <button id="gestor-btn-finalizar" class="btn btn-danger btn-lg mt-16" onclick="gestorFinalizarTarefa()">
+            Finalizar Tarefa
+          </button>
         </div>
       </div>
     </div>
@@ -82,6 +124,16 @@
           <label>Data fim</label>
           <input type="date" id="hist-data-fim">
         </div>
+        <div class="form-group">
+          <label>Funcionarios</label>
+          <div id="filtro-funcionarios-container" style="max-height:150px;overflow-y:auto;border:2px solid #ddd;border-radius:8px;padding:8px;">
+            <label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:0.9rem;cursor:pointer;">
+              <input type="checkbox" id="hist-todos-func" checked onchange="toggleTodosFuncionarios()">
+              <strong>Todos</strong>
+            </label>
+            <div id="hist-lista-func"></div>
+          </div>
+        </div>
         <button class="btn btn-primary" onclick="buscarHistorico()">Buscar</button>
       </div>
 
@@ -90,7 +142,6 @@
 
     <!-- Tab: Cadastro -->
     <div id="tab-cadastro" class="tab-content">
-      <!-- Cadastro de funcionario -->
       <div class="card">
         <h3 class="card-title mb-12">Novo Funcionario</h3>
         <div class="form-group">
@@ -112,10 +163,13 @@
             <option value="gestor">Gestor</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="text" id="cad-func-senha" placeholder="Senha do funcionario">
+        </div>
         <button class="btn btn-success" onclick="cadastrarFuncionario()">Cadastrar Funcionario</button>
       </div>
 
-      <!-- Cadastro de tarefa -->
       <div class="card mt-12">
         <h3 class="card-title mb-12">Nova Tarefa</h3>
         <div class="form-group">
@@ -155,15 +209,15 @@
   <script src="js/gestor.js"></script>
   <script>
     let funcionario = null;
+    let gestorRegistroAtual = null;
+    let listaFuncionariosCarregada = false;
 
-    // Inicializacao
     async function init() {
       if (!Auth.verificarAuth('gestor')) return;
 
       funcionario = Auth.obterSessao();
       Auth.atualizarHeader();
 
-      // Definir datas padrao do historico
       const hoje = new Date();
       const mesPassado = new Date(hoje);
       mesPassado.setMonth(mesPassado.getMonth() - 1);
@@ -173,11 +227,11 @@
 
       await atualizarPainel();
 
-      // Atualizacao automatica
       Gestor.iniciarAtualizacao(atualizarPainel);
     }
 
-    // Atualizar painel em tempo real
+    // === TEMPO REAL ===
+
     async function atualizarPainel() {
       const filtros = {
         tarefa: document.getElementById('filtro-tarefa').value,
@@ -193,13 +247,11 @@
 
       const dados = resultado.dados;
 
-      // Atualizar contadores
       document.getElementById('total-func').textContent = dados.total || 0;
       document.getElementById('total-ativos').textContent = dados.ativos || 0;
       document.getElementById('total-ociosos').textContent = dados.ociosos || 0;
       document.getElementById('total-alertas').textContent = dados.alertas || 0;
 
-      // Atualizar filtro de tarefas (somente na primeira carga)
       const filtroTarefa = document.getElementById('filtro-tarefa');
       if (filtroTarefa.options.length <= 1 && dados.tarefas) {
         dados.tarefas.forEach(t => {
@@ -210,11 +262,171 @@
         });
       }
 
-      // Renderizar funcionarios
+      // Popular lista de funcionarios no filtro do historico (uma vez)
+      if (!listaFuncionariosCarregada && dados.funcionarios) {
+        popularFiltroFuncionarios(dados.funcionarios);
+        listaFuncionariosCarregada = true;
+      }
+
       Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios);
     }
 
-    // Buscar historico
+    // === TAREFAS DO GESTOR ===
+
+    async function gestorVerificarStatus() {
+      document.getElementById('gestor-loading').classList.add('visivel');
+
+      const resultado = await Tarefas.verificarStatus(funcionario.codigo);
+
+      document.getElementById('gestor-loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      if (resultado.dados.tarefa_ativa) {
+        gestorRegistroAtual = resultado.dados.tarefa_ativa;
+        gestorMostrarTarefaAtiva(gestorRegistroAtual);
+      } else {
+        await gestorCarregarTarefas();
+      }
+    }
+
+    async function gestorCarregarTarefas() {
+      document.getElementById('gestor-loading').classList.add('visivel');
+
+      const resultado = await Tarefas.listarTarefas();
+
+      document.getElementById('gestor-loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      const container = document.getElementById('gestor-lista-tarefas');
+      const tarefas = resultado.dados;
+
+      if (!tarefas || tarefas.length === 0) {
+        container.innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponivel.</p></div>';
+      } else {
+        container.innerHTML = tarefas.map(tarefa => `
+          <div class="task-item" onclick="gestorIniciarTarefa('${tarefa.id_tarefa}', '${tarefa.nome}', ${tarefa.usa_qrcode_carga})">
+            <span class="task-name">${tarefa.nome}</span>
+            <span class="task-arrow">&rsaquo;</span>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('gestor-secao-tarefas').classList.remove('hidden');
+      document.getElementById('gestor-secao-ativa').classList.add('hidden');
+    }
+
+    async function gestorIniciarTarefa(idTarefa, nomeTarefa, usaQrcodeCarga) {
+      if (usaQrcodeCarga) {
+        sessionStorage.setItem('tarefa_carregamento', JSON.stringify({
+          id_tarefa: idTarefa,
+          nome: nomeTarefa
+        }));
+        window.location.href = 'carregamento.html';
+        return;
+      }
+
+      document.getElementById('gestor-loading').classList.add('visivel');
+
+      const resultado = await Tarefas.iniciarTarefa(funcionario.codigo, idTarefa);
+
+      document.getElementById('gestor-loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      gestorRegistroAtual = resultado.dados;
+      gestorMostrarTarefaAtiva(gestorRegistroAtual);
+      mostrarMsg('Tarefa iniciada com sucesso!', 'success');
+    }
+
+    function gestorMostrarTarefaAtiva(registro) {
+      document.getElementById('gestor-tarefa-nome').textContent = registro.nome_tarefa;
+
+      Tarefas.pararCronometro();
+      Tarefas.iniciarCronometro(registro.data_inicio, 'gestor-cronometro');
+
+      if (registro.carga) {
+        document.getElementById('gestor-carga-info').classList.remove('hidden');
+        document.getElementById('gestor-carga-numero').textContent = registro.carga.numero_carga;
+        document.getElementById('gestor-carga-volumes').textContent = registro.carga.qtd_volumes;
+
+        Carregamento.iniciarMonitoramento(
+          registro.carga.numero_carga,
+          registro.carga.qtd_volumes,
+          'gestor-workers-carga'
+        );
+      } else {
+        document.getElementById('gestor-carga-info').classList.add('hidden');
+      }
+
+      document.getElementById('gestor-secao-tarefas').classList.add('hidden');
+      document.getElementById('gestor-secao-ativa').classList.remove('hidden');
+    }
+
+    async function gestorFinalizarTarefa() {
+      if (!gestorRegistroAtual) return;
+
+      const confirmar = confirm('Deseja realmente finalizar esta tarefa?');
+      if (!confirmar) return;
+
+      document.getElementById('gestor-loading').classList.add('visivel');
+      document.getElementById('gestor-btn-finalizar').disabled = true;
+
+      const resultado = await Tarefas.finalizarTarefa(funcionario.codigo, gestorRegistroAtual.id_registro);
+
+      document.getElementById('gestor-btn-finalizar').disabled = false;
+      document.getElementById('gestor-loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      Tarefas.pararCronometro();
+      Carregamento.pararMonitoramento();
+
+      if (resultado.dados && resultado.dados.distribuicao) {
+        const dist = resultado.dados.distribuicao;
+        const meuVolume = dist.find(d => d.codigo_func === funcionario.codigo);
+        if (meuVolume) {
+          alert(`Tarefa finalizada!\nSeus volumes: ${meuVolume.volumes_proporcionais} (${meuVolume.percentual}%)`);
+        }
+      }
+
+      gestorRegistroAtual = null;
+      mostrarMsg('Tarefa finalizada com sucesso!', 'success');
+      await gestorCarregarTarefas();
+    }
+
+    // === HISTORICO ===
+
+    function popularFiltroFuncionarios(funcionarios) {
+      const container = document.getElementById('hist-lista-func');
+      container.innerHTML = funcionarios.map(f => `
+        <label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:0.9rem;cursor:pointer;">
+          <input type="checkbox" class="hist-func-check" value="${f.codigo}" checked>
+          ${f.nome} (${f.codigo})
+        </label>
+      `).join('');
+    }
+
+    function toggleTodosFuncionarios() {
+      const marcado = document.getElementById('hist-todos-func').checked;
+      document.querySelectorAll('.hist-func-check').forEach(cb => {
+        cb.checked = marcado;
+      });
+    }
+
     async function buscarHistorico() {
       const dataInicio = document.getElementById('hist-data-inicio').value;
       const dataFim = document.getElementById('hist-data-fim').value;
@@ -224,7 +436,20 @@
         return;
       }
 
-      const resultado = await Gestor.buscarHistorico(dataInicio, dataFim);
+      // Coletar funcionarios selecionados
+      const todosMarcado = document.getElementById('hist-todos-func').checked;
+      let funcionariosSelecionados = '';
+
+      if (!todosMarcado) {
+        const checks = document.querySelectorAll('.hist-func-check:checked');
+        if (checks.length === 0) {
+          mostrarMsg('Selecione pelo menos um funcionario.', 'warning');
+          return;
+        }
+        funcionariosSelecionados = Array.from(checks).map(c => c.value).join(',');
+      }
+
+      const resultado = await Gestor.buscarHistorico(dataInicio, dataFim, funcionariosSelecionados);
 
       if (!resultado.sucesso) {
         mostrarMsg(resultado.mensagem, 'error');
@@ -234,17 +459,19 @@
       Gestor.renderizarHistorico('tabela-historico', resultado.dados);
     }
 
-    // Cadastrar funcionario
+    // === CADASTRO ===
+
     async function cadastrarFuncionario() {
       const dados = {
         codigo: document.getElementById('cad-func-codigo').value.trim().toUpperCase(),
         nome: document.getElementById('cad-func-nome').value.trim(),
         cargo: document.getElementById('cad-func-cargo').value.trim(),
-        perfil: document.getElementById('cad-func-perfil').value
+        perfil: document.getElementById('cad-func-perfil').value,
+        senha: document.getElementById('cad-func-senha').value.trim()
       };
 
-      if (!dados.codigo || !dados.nome || !dados.cargo) {
-        mostrarMsg('Preencha todos os campos.', 'warning');
+      if (!dados.codigo || !dados.nome || !dados.cargo || !dados.senha) {
+        mostrarMsg('Preencha todos os campos, incluindo a senha.', 'warning');
         return;
       }
 
@@ -255,12 +482,12 @@
         document.getElementById('cad-func-codigo').value = '';
         document.getElementById('cad-func-nome').value = '';
         document.getElementById('cad-func-cargo').value = '';
+        document.getElementById('cad-func-senha').value = '';
       } else {
         mostrarMsg(resultado.mensagem, 'error');
       }
     }
 
-    // Cadastrar tarefa
     async function cadastrarTarefa() {
       const dados = {
         nome: document.getElementById('cad-tarefa-nome').value.trim(),
@@ -283,16 +510,21 @@
       }
     }
 
-    // Trocar tabs
+    // === UTILIDADES ===
+
     function trocarTab(tabId) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('ativo'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('ativo'));
 
       document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('ativo');
       document.getElementById(`tab-${tabId}`).classList.add('ativo');
+
+      // Ao entrar na tab Tarefas, verificar status
+      if (tabId === 'tarefas') {
+        gestorVerificarStatus();
+      }
     }
 
-    // Modal de distribuicao
     function fecharModal() {
       document.getElementById('modal-distribuicao').classList.remove('visivel');
     }
@@ -308,7 +540,6 @@
       setTimeout(() => el.classList.add('hidden'), 5000);
     }
 
-    // Iniciar
     init();
   </script>
 </body>

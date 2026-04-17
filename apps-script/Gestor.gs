@@ -165,6 +165,14 @@ function Gestor_historico(params) {
   var dataInicio = params.data_inicio ? new Date(params.data_inicio) : null;
   var dataFim = params.data_fim ? new Date(params.data_fim + 'T23:59:59') : null;
 
+  // Filtro de funcionarios (lista separada por virgula)
+  var filtroFuncionarios = null;
+  if (params.funcionarios && params.funcionarios.trim() !== '') {
+    filtroFuncionarios = params.funcionarios.split(',').map(function(f) {
+      return f.trim().toUpperCase();
+    });
+  }
+
   // Buscar cargas para enriquecer dados
   var sheetCargas = getSheet('Cargas');
   var dadosCargas = sheetCargas.getDataRange().getValues();
@@ -184,6 +192,12 @@ function Gestor_historico(params) {
   var registros = [];
   for (var i = dados.length - 1; i >= 1; i--) {
     var row = dados[i];
+
+    // Filtrar por funcionarios
+    if (filtroFuncionarios) {
+      var codFuncReg = String(row[idxCodFunc]).trim().toUpperCase();
+      if (filtroFuncionarios.indexOf(codFuncReg) === -1) continue;
+    }
 
     // Filtrar por data
     if (dataInicio || dataFim) {
@@ -234,8 +248,8 @@ function Gestor_historico(params) {
 
 // Cadastrar novo funcionario
 function Gestor_cadastrarFuncionario(dados) {
-  if (!dados.codigo || !dados.nome || !dados.cargo) {
-    return { sucesso: false, mensagem: 'Preencha todos os campos obrigatorios.' };
+  if (!dados.codigo || !dados.nome || !dados.cargo || !dados.senha) {
+    return { sucesso: false, mensagem: 'Preencha todos os campos obrigatorios, incluindo a senha.' };
   }
 
   var codigo = dados.codigo.trim().toUpperCase();
@@ -257,7 +271,8 @@ function Gestor_cadastrarFuncionario(dados) {
     dados.nome.trim(),
     dados.cargo.trim(),
     true, // ativo
-    dados.perfil || 'funcionario'
+    dados.perfil || 'funcionario',
+    dados.senha.trim()
   ]);
 
   return { sucesso: true, mensagem: 'Funcionario cadastrado com sucesso.' };

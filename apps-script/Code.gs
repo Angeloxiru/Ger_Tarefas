@@ -11,7 +11,7 @@ function doGet(e) {
   try {
     switch (acao) {
       case 'login':
-        resultado = Auth_login(e.parameter.codigo);
+        resultado = Auth_login(e.parameter.codigo, e.parameter.senha);
         break;
 
       case 'listar_tarefas':
