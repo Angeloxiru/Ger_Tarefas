@@ -44,7 +44,6 @@ function verificarTimeouts() {
     var tempoMaximo = tempoMaximoMap[idTarefa] || timeoutPadrao;
 
     if (tempoDecorridoMin >= tempoMaximo) {
-      // Realizar timeout
       sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
       sheetReg.getRange(i + 1, idxStatus + 1).setValue('timeout');
       sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('sistema');
@@ -52,6 +51,12 @@ function verificarTimeouts() {
       timeoutsRealizados++;
 
       Logger.log('Timeout realizado: ' + dados[i][idxId] + ' - Func: ' + dados[i][idxCodFunc]);
+
+      // Se era carregamento, logar exclusao da distribuicao de volumes
+      var carga = buscarCargaDoRegistro(dados[i][idxId]);
+      if (carga) {
+        Logger.log('Func ' + dados[i][idxCodFunc] + ' excluido da distribuicao da carga ' + carga.numero_carga + ' por timeout.');
+      }
     }
   }
 

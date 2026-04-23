@@ -26,33 +26,34 @@ const Carregamento = {
 
     const agora = Date.now();
 
-    const workersComTempo = workers.map(w => {
-      const inicio = new Date(w.data_inicio).getTime();
-      let fim;
+    // Timeout = excluido; calcular apenas finalizados ou em andamento
+    const validos = workers
+      .filter(w => w.status !== 'timeout')
+      .map(w => {
+        const inicio = new Date(w.data_inicio).getTime();
+        const fim = w.status === 'finalizada'
+          ? new Date(w.data_fim).getTime()
+          : agora;
+        return { ...w, tempo_ms: Math.max(fim - inicio, 60000) };
+      });
 
-      if (w.status === 'finalizada' || w.status === 'timeout') {
-        fim = new Date(w.data_fim).getTime();
-      } else {
-        fim = agora;
-      }
+    // Priorizar finalizados; se nenhum ainda, usar em_andamento
+    const finalizados = validos.filter(w => w.status === 'finalizada');
+    const paraCalculo = finalizados.length > 0 ? finalizados : validos;
 
-      const tempoMs = Math.max(fim - inicio, 60000);
-      return { ...w, tempo_ms: tempoMs };
-    });
+    if (paraCalculo.length === 0) return [];
 
-    const tempoTotal = workersComTempo.reduce((acc, w) => acc + w.tempo_ms, 0);
+    const tempoTotal = paraCalculo.reduce((acc, w) => acc + w.tempo_ms, 0);
 
     let volumesDistribuidos = 0;
-    const resultado = workersComTempo.map((w, index) => {
+    return paraCalculo.map((w, index) => {
       let volumesProporcional;
-
-      if (index === workersComTempo.length - 1) {
+      if (index === paraCalculo.length - 1) {
         volumesProporcional = totalVolumes - volumesDistribuidos;
       } else {
         volumesProporcional = Math.round((w.tempo_ms / tempoTotal) * totalVolumes);
         volumesDistribuidos += volumesProporcional;
       }
-
       return {
         codigo_func: w.codigo_func,
         nome_func: w.nome_func || w.codigo_func,
@@ -63,8 +64,6 @@ const Carregamento = {
         status: w.status
       };
     });
-
-    return resultado;
   },
 
   renderizarWorkers(containerId, workers, totalVolumes) {
@@ -72,6 +71,12 @@ const Carregamento = {
     if (!container) return;
 
     if (!workers || workers.length <= 1) {
+      // Verificar se o unico worker nao e timeout
+      if (!workers || workers.length === 0 || workers[0].status === 'timeout') {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+        return;
+      }
       container.innerHTML = '';
       container.classList.add('hidden');
       return;
@@ -82,14 +87,19 @@ const Carregamento = {
     const distribuicao = this.calcularDistribuicao(workers, totalVolumes);
     const cores = ['#1a73e8', '#0d9f6e', '#f59e0b', '#8b5cf6', '#ec4899'];
 
+    // Barra mostra apenas os validos (distribuicao)
     let barraHtml = distribuicao.map((w, i) => {
       const cor = cores[i % cores.length];
       return `<div class="bar-segment" style="width:${w.percentual}%;background:${cor}">${w.volumes_proporcionais}</div>`;
     }).join('');
 
-    let legendaHtml = distribuicao.map((w, i) => {
+    // Legenda: validos com volumes + timeout riscado/excluido
+    const validosSet = new Set(distribuicao.map(w => w.codigo_func));
+    let legendaHtml = '';
+
+    distribuicao.forEach((w, i) => {
       const cor = cores[i % cores.length];
-      return `
+      legendaHtml += `
         <div class="legend-item">
           <span class="legend-name">
             <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cor};margin-right:6px;"></span>
@@ -98,12 +108,31 @@ const Carregamento = {
           <span class="legend-value">${w.volumes_proporcionais} vol. (${w.percentual}%)</span>
         </div>
       `;
-    }).join('');
+    });
+
+    // Adicionar workers com timeout como excluidos
+    workers.filter(w => w.status === 'timeout').forEach(w => {
+      legendaHtml += `
+        <div class="legend-item" style="opacity:0.5;text-decoration:line-through;">
+          <span class="legend-name">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:6px;"></span>
+            ${w.nome_func || w.codigo_func} (timeout)
+          </span>
+          <span class="legend-value" style="color:#ef4444;">excluido</span>
+        </div>
+      `;
+    });
+
+    const totalWorkers = workers.length;
+    const excluidos = workers.filter(w => w.status === 'timeout').length;
+    const titulo = excluidos > 0
+      ? `Distribuicao (${totalWorkers - excluidos} validos, ${excluidos} excluido por timeout)`
+      : `Distribuicao de Volumes (${totalWorkers} trabalhadores)`;
 
     container.innerHTML = `
       <div class="volume-distribution">
-        <div class="dist-title">Distribuicao de Volumes (${workers.length} trabalhadores)</div>
-        <div class="volume-bar">${barraHtml}</div>
+        <div class="dist-title">${titulo}</div>
+        ${barraHtml ? `<div class="volume-bar">${barraHtml}</div>` : ''}
         <div class="volume-legend">${legendaHtml}</div>
       </div>
     `;
