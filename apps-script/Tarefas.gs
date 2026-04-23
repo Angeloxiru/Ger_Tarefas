@@ -272,37 +272,53 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   }
 
   var agora = new Date();
-  var workers = [];
+  var workersFinalizados = [];
+  var workersEmAndamento = [];
 
   for (var j = 0; j < registrosCarga.length; j++) {
     var rc = registrosCarga[j];
 
     for (var k = 1; k < dadosReg.length; k++) {
       if (dadosReg[k][idxRegId] === rc.id_registro) {
-        var dataInicio = new Date(dadosReg[k][idxRegDataInicio]);
-        var dataFim;
         var status = dadosReg[k][idxRegStatus];
 
-        if (status === 'finalizada' || status === 'timeout') {
+        // Timeout = excluido da distribuicao
+        if (status === 'timeout') break;
+
+        var dataInicio = new Date(dadosReg[k][idxRegDataInicio]);
+        var dataFim;
+
+        if (status === 'finalizada') {
           dataFim = new Date(dadosReg[k][idxRegDataFim]);
         } else {
-          dataFim = agora;
+          dataFim = agora; // em_andamento: conta ate agora
         }
 
-        var tempoMs = Math.max(dataFim.getTime() - dataInicio.getTime(), 60000); // Min 1 min
+        var tempoMs = Math.max(dataFim.getTime() - dataInicio.getTime(), 60000);
 
-        workers.push({
+        var worker = {
           codigo_func: rc.codigo_func,
           nome_func: mapaNomes[String(rc.codigo_func).trim().toUpperCase()] || rc.codigo_func,
           data_inicio: dataInicio.toISOString(),
           data_fim: dataFim.toISOString(),
           status: status,
           tempo_ms: tempoMs
-        });
+        };
+
+        if (status === 'finalizada') {
+          workersFinalizados.push(worker);
+        } else {
+          workersEmAndamento.push(worker);
+        }
         break;
       }
     }
   }
+
+  // Usar apenas finalizados; se nenhum ainda (todos em andamento), usar todos em andamento
+  var workers = workersFinalizados.length > 0 ? workersFinalizados : workersEmAndamento;
+
+  if (workers.length === 0) return [];
 
   // Calcular proporcao
   var tempoTotal = 0;
