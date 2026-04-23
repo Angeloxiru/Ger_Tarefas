@@ -38,14 +38,10 @@
       </button>
 
       <div class="mt-12">
-        <p class="text-center mb-8" style="font-size:0.85rem;color:#666;">Ou insira manualmente:</p>
+        <p class="text-center mb-8" style="font-size:0.85rem;color:#666;">Ou insira manualmente (CARGA|VOLUMES):</p>
         <div class="form-group">
-          <label>Numero da carga</label>
-          <input type="text" id="input-numero-carga" class="input-text" placeholder="Ex: CG-2024-00158">
-        </div>
-        <div class="form-group">
-          <label>Quantidade de volumes</label>
-          <input type="number" id="input-qtd-volumes" class="input-text" placeholder="Ex: 45" min="1">
+          <label>Dados da carga</label>
+          <input type="text" id="input-carga" class="input-text" placeholder="Ex: C350|410">
         </div>
         <button class="btn btn-primary mt-8" onclick="registrarManual()">
           Registrar Carga
@@ -187,22 +183,22 @@
       await registrarCarga(dados.numero_carga, dados.qtd_volumes);
     }
 
-    // Registrar carga manualmente
     async function registrarManual() {
-      const numeroCarga = document.getElementById('input-numero-carga').value.trim();
-      const qtdVolumes = parseInt(document.getElementById('input-qtd-volumes').value, 10);
+      const texto = document.getElementById('input-carga').value.trim();
 
-      if (!numeroCarga) {
-        mostrarMsg('Informe o numero da carga.', 'warning');
+      if (!texto) {
+        mostrarMsg('Informe os dados da carga (CARGA|VOLUMES).', 'warning');
         return;
       }
 
-      if (!qtdVolumes || qtdVolumes <= 0) {
-        mostrarMsg('Informe uma quantidade de volumes valida.', 'warning');
+      const dados = Scanner.parsearCarga(texto);
+
+      if (!dados) {
+        mostrarMsg('Formato invalido. Use CARGA|VOLUMES (ex: C350|410).', 'error');
         return;
       }
 
-      await registrarCarga(numeroCarga, qtdVolumes);
+      await registrarCarga(dados.numero_carga, dados.qtd_volumes);
     }
 
     // Registrar carga no sistema
