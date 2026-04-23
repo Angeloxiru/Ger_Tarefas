@@ -125,13 +125,25 @@
           <input type="date" id="hist-data-fim">
         </div>
         <div class="form-group">
-          <label>Funcionarios</label>
-          <div id="filtro-funcionarios-container" style="max-height:150px;overflow-y:auto;border:2px solid #ddd;border-radius:8px;padding:8px;">
-            <label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:0.9rem;cursor:pointer;">
-              <input type="checkbox" id="hist-todos-func" checked onchange="toggleTodosFuncionarios()">
+          <label>Funcionario</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;cursor:pointer;white-space:nowrap;">
+              <input type="radio" name="hist-filtro-tipo" value="todos" checked onchange="toggleFiltroFunc()">
               <strong>Todos</strong>
             </label>
-            <div id="hist-lista-func"></div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;cursor:pointer;white-space:nowrap;">
+              <input type="radio" name="hist-filtro-tipo" value="individual" onchange="toggleFiltroFunc()">
+              <strong>Individual</strong>
+            </label>
+          </div>
+          <div id="filtro-func-individual" class="hidden">
+            <div class="input-group">
+              <input type="text" id="hist-func-codigo" class="input-text" placeholder="Codigo do cracha" readonly>
+              <button class="btn btn-primary" onclick="scanFuncionarioHistorico()" style="width:auto;padding:12px 16px;">
+                Escanear
+              </button>
+            </div>
+            <div id="hist-func-nome" style="font-size:0.85rem;color:#1a73e8;margin-top:4px;min-height:20px;"></div>
           </div>
         </div>
         <button class="btn btn-primary" onclick="buscarHistorico()">Buscar</button>
@@ -191,6 +203,19 @@
       </div>
     </div>
 
+    <!-- Modal de scan funcionario (historico) -->
+    <div id="modal-scan-func" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-title">Escanear Cracha</div>
+        <div id="reader-hist" style="width:100%;max-width:280px;margin:0 auto;border-radius:10px;overflow:hidden;"></div>
+        <div class="input-group mt-12">
+          <input type="text" id="scan-func-manual" class="input-text" placeholder="Ou digite o codigo" maxlength="10">
+          <button class="btn btn-primary" onclick="confirmarFuncManual()" style="width:auto;padding:12px 16px;">OK</button>
+        </div>
+        <button class="btn btn-secondary mt-12" onclick="fecharScanFunc()">Cancelar</button>
+      </div>
+    </div>
+
     <!-- Modal de distribuicao de carga -->
     <div id="modal-distribuicao" class="modal-overlay">
       <div class="modal">
@@ -201,16 +226,17 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/scanner.js"></script>
   <script src="js/tarefas.js"></script>
   <script src="js/carregamento.js"></script>
   <script src="js/gestor.js"></script>
   <script>
     let funcionario = null;
     let gestorRegistroAtual = null;
-    let listaFuncionariosCarregada = false;
 
     async function init() {
       if (!Auth.verificarAuth('gestor')) return;
@@ -260,12 +286,6 @@
           opt.textContent = t.nome;
           filtroTarefa.appendChild(opt);
         });
-      }
-
-      // Popular lista de funcionarios no filtro do historico (uma vez)
-      if (!listaFuncionariosCarregada && dados.funcionarios) {
-        popularFiltroFuncionarios(dados.funcionarios);
-        listaFuncionariosCarregada = true;
       }
 
       Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios);
@@ -410,21 +430,57 @@
 
     // === HISTORICO ===
 
-    function popularFiltroFuncionarios(funcionarios) {
-      const container = document.getElementById('hist-lista-func');
-      container.innerHTML = funcionarios.map(f => `
-        <label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:0.9rem;cursor:pointer;">
-          <input type="checkbox" class="hist-func-check" value="${f.codigo}" checked>
-          ${f.nome} (${f.codigo})
-        </label>
-      `).join('');
+    let scanHistAtivo = false;
+
+    function toggleFiltroFunc() {
+      const tipo = document.querySelector('input[name="hist-filtro-tipo"]:checked').value;
+      const divIndividual = document.getElementById('filtro-func-individual');
+
+      if (tipo === 'todos') {
+        divIndividual.classList.add('hidden');
+        document.getElementById('hist-func-codigo').value = '';
+        document.getElementById('hist-func-nome').textContent = '';
+      } else {
+        divIndividual.classList.remove('hidden');
+      }
     }
 
-    function toggleTodosFuncionarios() {
-      const marcado = document.getElementById('hist-todos-func').checked;
-      document.querySelectorAll('.hist-func-check').forEach(cb => {
-        cb.checked = marcado;
+    async function scanFuncionarioHistorico() {
+      document.getElementById('modal-scan-func').classList.add('visivel');
+      document.getElementById('scan-func-manual').value = '';
+
+      const sucesso = await Scanner.iniciar('reader-hist', (codigo) => {
+        selecionarFuncionarioHist(codigo.trim().toUpperCase());
       });
+
+      if (!sucesso) {
+        mostrarMsg('Camera indisponivel. Use o campo manual.', 'warning');
+      } else {
+        scanHistAtivo = true;
+      }
+    }
+
+    function confirmarFuncManual() {
+      const codigo = document.getElementById('scan-func-manual').value.trim().toUpperCase();
+      if (!codigo) {
+        mostrarMsg('Digite o codigo do cracha.', 'warning');
+        return;
+      }
+      selecionarFuncionarioHist(codigo);
+    }
+
+    function selecionarFuncionarioHist(codigo) {
+      document.getElementById('hist-func-codigo').value = codigo;
+      document.getElementById('hist-func-nome').textContent = 'Cracha: ' + codigo;
+      fecharScanFunc();
+    }
+
+    async function fecharScanFunc() {
+      if (scanHistAtivo) {
+        await Scanner.parar();
+        scanHistAtivo = false;
+      }
+      document.getElementById('modal-scan-func').classList.remove('visivel');
     }
 
     async function buscarHistorico() {
@@ -436,17 +492,16 @@
         return;
       }
 
-      // Coletar funcionarios selecionados
-      const todosMarcado = document.getElementById('hist-todos-func').checked;
+      const tipo = document.querySelector('input[name="hist-filtro-tipo"]:checked').value;
       let funcionariosSelecionados = '';
 
-      if (!todosMarcado) {
-        const checks = document.querySelectorAll('.hist-func-check:checked');
-        if (checks.length === 0) {
-          mostrarMsg('Selecione pelo menos um funcionario.', 'warning');
+      if (tipo === 'individual') {
+        const codigo = document.getElementById('hist-func-codigo').value.trim();
+        if (!codigo) {
+          mostrarMsg('Escaneie ou digite o cracha do funcionario.', 'warning');
           return;
         }
-        funcionariosSelecionados = Array.from(checks).map(c => c.value).join(',');
+        funcionariosSelecionados = codigo;
       }
 
       const resultado = await Gestor.buscarHistorico(dataInicio, dataFim, funcionariosSelecionados);
