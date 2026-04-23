@@ -10,6 +10,10 @@ function doGet(e) {
 
   try {
     switch (acao) {
+      case 'verificar_cracha':
+        resultado = Auth_verificarCracha(e.parameter.codigo);
+        break;
+
       case 'login':
         resultado = Auth_login(e.parameter.codigo, e.parameter.senha);
         break;

@@ -24,17 +24,17 @@
       <div class="input-group mt-16">
         <input type="text" id="codigo-manual" class="input-text" placeholder="Codigo do cracha"
           maxlength="10" autocomplete="off">
-        <button class="btn btn-primary" onclick="avancarParaSenha()" style="width:auto;padding:12px 20px;">
+        <button class="btn btn-primary" onclick="verificarCracha()" style="width:auto;padding:12px 20px;">
           Proximo
         </button>
       </div>
     </div>
 
-    <!-- Etapa 2: Senha -->
+    <!-- Etapa 2: Senha (apenas quando necessario) -->
     <div id="etapa-senha" class="hidden" style="width:100%;max-width:300px;">
       <div class="card text-center mb-12">
-        <div style="font-size:0.85rem;color:#666;">Cracha:</div>
-        <div id="codigo-exibido" style="font-size:1.3rem;font-weight:700;color:#1a73e8;"></div>
+        <div style="font-size:0.85rem;color:#666;">Bem-vindo,</div>
+        <div id="func-nome-exibido" style="font-size:1.2rem;font-weight:700;color:#1a73e8;"></div>
       </div>
 
       <div class="form-group">
@@ -68,11 +68,7 @@
   <script>
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
-      if (func.perfil === 'gestor') {
-        window.location.href = 'gestor.html';
-      } else {
-        window.location.href = 'painel.html';
-      }
+      window.location.href = func.perfil === 'gestor' ? 'gestor.html' : 'painel.html';
     }
 
     let scanAtivo = false;
@@ -91,7 +87,7 @@
       const sucesso = await Scanner.iniciar('reader', async (codigo) => {
         scanAtivo = false;
         document.getElementById('btn-scan').textContent = 'Escanear Cracha';
-        mostrarEtapaSenha(codigo);
+        await verificarCrachaCodigo(codigo.trim().toUpperCase());
       });
 
       if (sucesso) {
@@ -102,32 +98,59 @@
       }
     }
 
-    function avancarParaSenha() {
+    // Chamado pelo botao "Proximo" no campo manual
+    async function verificarCracha() {
       const codigo = document.getElementById('codigo-manual').value.trim();
       if (!codigo) {
         mostrarMsg('Digite o codigo do cracha.', 'warning');
         return;
       }
-      mostrarEtapaSenha(codigo);
+      await verificarCrachaCodigo(codigo.toUpperCase());
     }
 
-    function mostrarEtapaSenha(codigo) {
-      codigoSelecionado = codigo.toUpperCase();
-      document.getElementById('codigo-exibido').textContent = codigoSelecionado;
-      document.getElementById('etapa-codigo').classList.add('hidden');
-      document.getElementById('etapa-senha').classList.remove('hidden');
-      document.getElementById('input-senha').value = '';
-      document.getElementById('input-senha').focus();
+    // Verifica se o cracha existe e se requer senha
+    async function verificarCrachaCodigo(codigo) {
       mostrarMsg('', '');
+      document.getElementById('loading').classList.add('visivel');
+
+      const resultado = await API.get({ acao: 'verificar_cracha', codigo });
+
+      document.getElementById('loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+        return;
+      }
+
+      codigoSelecionado = codigo;
+
+      if (resultado.dados.requer_senha) {
+        // Exibir etapa de senha
+        document.getElementById('func-nome-exibido').textContent = resultado.dados.nome;
+        document.getElementById('etapa-codigo').classList.add('hidden');
+        document.getElementById('etapa-senha').classList.remove('hidden');
+        document.getElementById('input-senha').value = '';
+        document.getElementById('input-senha').focus();
+      } else {
+        // Login direto sem senha
+        await fazerLoginDireto();
+      }
     }
 
-    function voltarCodigo() {
-      codigoSelecionado = '';
-      document.getElementById('etapa-senha').classList.add('hidden');
-      document.getElementById('etapa-codigo').classList.remove('hidden');
-      mostrarMsg('', '');
+    // Login sem senha (funcionarios sem senha cadastrada)
+    async function fazerLoginDireto() {
+      document.getElementById('loading').classList.add('visivel');
+
+      const resultado = await Auth.login(codigoSelecionado, '');
+
+      document.getElementById('loading').classList.remove('visivel');
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'error');
+      }
     }
 
+    // Login com senha
     async function fazerLogin() {
       const senha = document.getElementById('input-senha').value;
       if (!senha) {
@@ -147,17 +170,22 @@
       }
     }
 
+    function voltarCodigo() {
+      codigoSelecionado = '';
+      document.getElementById('etapa-senha').classList.add('hidden');
+      document.getElementById('etapa-codigo').classList.remove('hidden');
+      mostrarMsg('', '');
+    }
+
     function mostrarMsg(texto, tipo) {
       const el = document.getElementById('login-msg');
       el.textContent = texto;
       el.className = 'login-msg';
-      if (tipo) {
-        el.classList.add(`msg-${tipo}`);
-      }
+      if (tipo) el.classList.add(`msg-${tipo}`);
     }
 
     document.getElementById('codigo-manual').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') avancarParaSenha();
+      if (e.key === 'Enter') verificarCracha();
     });
 
     document.getElementById('input-senha').addEventListener('keypress', (e) => {

@@ -1,12 +1,47 @@
 // Auth.gs - Funcoes de autenticacao
 
-function Auth_login(codigo, senha) {
+// Verifica se o cracha existe e se exige senha
+function Auth_verificarCracha(codigo) {
   if (!codigo) {
     return { sucesso: false, mensagem: 'Codigo do cracha nao informado.' };
   }
 
-  if (!senha) {
-    return { sucesso: false, mensagem: 'Senha nao informada.' };
+  codigo = codigo.trim().toUpperCase();
+
+  var sheet = getSheet('Funcionarios');
+  var dados = sheet.getDataRange().getValues();
+  var headers = dados[0];
+
+  var idxCodigo = headers.indexOf('codigo');
+  var idxNome = headers.indexOf('nome');
+  var idxAtivo = headers.indexOf('ativo');
+  var idxSenha = headers.indexOf('senha');
+
+  for (var i = 1; i < dados.length; i++) {
+    var row = dados[i];
+    if (String(row[idxCodigo]).trim().toUpperCase() === codigo) {
+      if (!row[idxAtivo]) {
+        return { sucesso: false, mensagem: 'Funcionario inativo. Procure o supervisor.' };
+      }
+
+      var temSenha = idxSenha >= 0 && String(row[idxSenha]).trim() !== '';
+
+      return {
+        sucesso: true,
+        dados: {
+          nome: row[idxNome],
+          requer_senha: temSenha
+        }
+      };
+    }
+  }
+
+  return { sucesso: false, mensagem: 'Cracha nao encontrado. Verifique o codigo.' };
+}
+
+function Auth_login(codigo, senha) {
+  if (!codigo) {
+    return { sucesso: false, mensagem: 'Codigo do cracha nao informado.' };
   }
 
   codigo = codigo.trim().toUpperCase();
@@ -29,10 +64,12 @@ function Auth_login(codigo, senha) {
         return { sucesso: false, mensagem: 'Funcionario inativo. Procure o supervisor.' };
       }
 
-      // Verificar senha
-      var senhaArmazenada = String(row[idxSenha]).trim();
-      if (senhaArmazenada !== senha.trim()) {
-        return { sucesso: false, mensagem: 'Senha incorreta.' };
+      // Verificar senha somente se houver uma cadastrada
+      var senhaArmazenada = idxSenha >= 0 ? String(row[idxSenha]).trim() : '';
+      if (senhaArmazenada !== '') {
+        if (!senha || senha.trim() !== senhaArmazenada) {
+          return { sucesso: false, mensagem: 'Senha incorreta.' };
+        }
       }
 
       return {
