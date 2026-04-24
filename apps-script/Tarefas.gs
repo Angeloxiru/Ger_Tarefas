@@ -215,10 +215,12 @@ function buscarCargaDoRegistro(idRegistro) {
 
   for (var i = 1; i < dados.length; i++) {
     if (dados[i][idxIdReg] === idRegistro) {
+      var codigoDoca = idxDoca >= 0 ? dados[i][idxDoca] : '';
       return {
         numero_carga: dados[i][idxNumCarga],
         qtd_volumes: dados[i][idxQtdVol],
-        doca: idxDoca >= 0 ? dados[i][idxDoca] : '',
+        doca: codigoDoca,
+        nome_doca: buscarNomeDoca(codigoDoca),
         data_leitura: formatarData(dados[i][idxDataLeitura])
       };
     }

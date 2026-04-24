@@ -46,11 +46,14 @@ function Gestor_painel(params) {
   var idxCargaNumero = headersCargas.indexOf('numero_carga');
   var idxCargaVolumes = headersCargas.indexOf('qtd_volumes');
 
+  var idxCargaDoca2 = headersCargas.indexOf('doca');
+
   var cargasPorRegistro = {};
   for (var c = 1; c < dadosCargas.length; c++) {
     cargasPorRegistro[dadosCargas[c][idxCargaIdReg]] = {
       numero_carga: dadosCargas[c][idxCargaNumero],
-      qtd_volumes: dadosCargas[c][idxCargaVolumes]
+      qtd_volumes: dadosCargas[c][idxCargaVolumes],
+      doca: idxCargaDoca2 >= 0 ? dadosCargas[c][idxCargaDoca2] : ''
     };
   }
 
@@ -91,6 +94,7 @@ function Gestor_painel(params) {
         func.tarefa_atual.carga = {
           numero_carga: carga.numero_carga,
           qtd_volumes: carga.qtd_volumes,
+          nome_doca: buscarNomeDoca(carga.doca),
           total_workers: workersPorCarga[carga.numero_carga] || 1
         };
       }
@@ -181,13 +185,18 @@ function Gestor_historico(params) {
   var idxCargaNumero = headersCargas.indexOf('numero_carga');
   var idxCargaVolumes = headersCargas.indexOf('qtd_volumes');
 
+  var idxCargaDoca = headersCargas.indexOf('doca');
+
   var cargasPorRegistro = {};
   for (var c = 1; c < dadosCargas.length; c++) {
     cargasPorRegistro[dadosCargas[c][idxCargaIdReg]] = {
       numero_carga: dadosCargas[c][idxCargaNumero],
-      qtd_volumes: dadosCargas[c][idxCargaVolumes]
+      qtd_volumes: dadosCargas[c][idxCargaVolumes],
+      doca: idxCargaDoca >= 0 ? dadosCargas[c][idxCargaDoca] : ''
     };
   }
+
+  var mapaNomes = buscarMapaNomes();
 
   var registros = [];
   for (var i = dados.length - 1; i >= 1; i--) {
@@ -206,9 +215,11 @@ function Gestor_historico(params) {
       if (dataFim && dataReg > dataFim) continue;
     }
 
+    var codFuncUpper = String(row[idxCodFunc]).trim().toUpperCase();
     var registro = {
       id_registro: row[idxId],
       codigo_func: row[idxCodFunc],
+      nome_func: mapaNomes[codFuncUpper] || row[idxCodFunc],
       nome_tarefa: row[idxNomeTarefa],
       data_inicio: formatarData(row[idxDataInicio]),
       data_fim: row[idxDataFim] ? formatarData(row[idxDataFim]) : null,
@@ -216,7 +227,8 @@ function Gestor_historico(params) {
       finalizado_por: row[idxFinalizadoPor],
       numero_carga: null,
       qtd_volumes: null,
-      volumes_proporcionais: null
+      volumes_proporcionais: null,
+      nome_doca: null
     };
 
     // Enriquecer com dados de carga
@@ -224,6 +236,7 @@ function Gestor_historico(params) {
       var carga = cargasPorRegistro[row[idxId]];
       registro.numero_carga = carga.numero_carga;
       registro.qtd_volumes = carga.qtd_volumes;
+      registro.nome_doca = buscarNomeDoca(carga.doca);
 
       // Calcular volumes proporcionais se finalizada
       if (registro.status === 'finalizada' || registro.status === 'timeout') {

@@ -34,6 +34,10 @@ function doGet(e) {
         resultado = Gestor_historico(e.parameter);
         break;
 
+      case 'verificar_doca':
+        resultado = verificarDoca(e.parameter.codigo);
+        break;
+
       case 'workers_carga':
         resultado = Carregamento_workersCarga(e.parameter.numero_carga);
         break;

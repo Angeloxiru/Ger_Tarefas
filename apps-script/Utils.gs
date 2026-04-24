@@ -42,6 +42,57 @@ function getConfigValor(chave, valorPadrao) {
   return valorPadrao;
 }
 
+// Buscar nome da doca pelo codigo na aba Docas
+function buscarNomeDoca(codigoDoca) {
+  if (!codigoDoca) return '';
+  try {
+    var sheet = getSheet('Docas');
+    var dados = sheet.getDataRange().getValues();
+    var headers = dados[0];
+    var idxCodigo = headers.indexOf('codigo');
+    var idxDoca = headers.indexOf('doca');
+
+    var codigoBusca = String(codigoDoca).trim().toUpperCase();
+    for (var i = 1; i < dados.length; i++) {
+      if (String(dados[i][idxCodigo]).trim().toUpperCase() === codigoBusca) {
+        return dados[i][idxDoca];
+      }
+    }
+  } catch (e) {
+    Logger.log('Erro ao buscar doca: ' + e.message);
+  }
+  return '';
+}
+
+// Buscar mapa de nomes de funcionarios
+function buscarMapaNomes() {
+  var sheet = getSheet('Funcionarios');
+  var dados = sheet.getDataRange().getValues();
+  var headers = dados[0];
+  var idxCodigo = headers.indexOf('codigo');
+  var idxNome = headers.indexOf('nome');
+
+  var mapa = {};
+  for (var i = 1; i < dados.length; i++) {
+    mapa[String(dados[i][idxCodigo]).trim().toUpperCase()] = dados[i][idxNome];
+  }
+  return mapa;
+}
+
+// Verificar doca - endpoint
+function verificarDoca(codigo) {
+  if (!codigo) {
+    return { sucesso: false, mensagem: 'Codigo da doca nao informado.' };
+  }
+
+  var nome = buscarNomeDoca(codigo);
+  if (!nome) {
+    return { sucesso: false, mensagem: 'Doca nao encontrada para o codigo: ' + codigo };
+  }
+
+  return { sucesso: true, dados: { codigo: codigo, nome: nome } };
+}
+
 // Gerar ID unico baseado em timestamp
 function gerarId(prefixo, sufixo) {
   var agora = new Date();
