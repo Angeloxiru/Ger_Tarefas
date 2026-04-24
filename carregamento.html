@@ -156,7 +156,8 @@
     let tarefaCarregamento = null;
     let registroAtual = null;
     let dadosCarga = null;
-    let docaAtual = null;
+    let docaAtual = null;  // { codigo, nome }
+
     let scanAtivo = false;
     let scanDocaAtivo = false;
 
@@ -206,13 +207,23 @@
     }
 
     // Confirmar doca e avancar para scan da carga
-    function confirmarDoca() {
-      const doca = document.getElementById('input-doca').value.trim();
-      if (!doca) {
+    async function confirmarDoca() {
+      const codigo = document.getElementById('input-doca').value.trim();
+      if (!codigo) {
         mostrarMsg('Informe a doca.', 'warning');
         return;
       }
-      docaAtual = doca;
+
+      mostrarLoading(true);
+      const resultado = await API.get({ acao: 'verificar_doca', codigo: codigo });
+      mostrarLoading(false);
+
+      if (!resultado.sucesso) {
+        mostrarMsg(resultado.mensagem || 'Doca nao encontrada.', 'error');
+        return;
+      }
+
+      docaAtual = { codigo: resultado.dados.codigo, nome: resultado.dados.nome };
       mostrarEtapa('scan');
     }
 
@@ -295,7 +306,7 @@
         registroAtual.id_registro,
         numeroCarga,
         qtdVolumes,
-        docaAtual
+        docaAtual ? docaAtual.codigo : ''
       );
 
       mostrarLoading(false);
@@ -308,7 +319,7 @@
       dadosCarga = {
         numero_carga: numeroCarga,
         qtd_volumes: qtdVolumes,
-        doca: docaAtual
+        nome_doca: docaAtual ? docaAtual.nome : ''
       };
 
       // Limpar dados da tarefa no sessionStorage
@@ -322,7 +333,7 @@
     function mostrarAndamento() {
       document.getElementById('tarefa-nome').textContent =
         dadosCarga.numero_carga;
-      document.getElementById('carga-doca').textContent = dadosCarga.doca || '-';
+      document.getElementById('carga-doca').textContent = dadosCarga.nome_doca || '-';
       document.getElementById('carga-numero').textContent = dadosCarga.numero_carga;
       document.getElementById('carga-volumes-total').textContent = dadosCarga.qtd_volumes;
 
@@ -375,7 +386,7 @@
       const infoHtml = `
         <div class="info-row">
           <span class="label">Doca:</span>
-          <span class="value">${dadosCarga.doca || '-'}</span>
+          <span class="value">${dadosCarga.nome_doca || '-'}</span>
         </div>
         <div class="info-row">
           <span class="label">Carga:</span>

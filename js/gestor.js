@@ -78,6 +78,9 @@ const Gestor = {
         tempoTexto = Tarefas.formatarDuracao(diff);
 
         if (func.tarefa_atual.carga) {
+          if (func.tarefa_atual.carga.nome_doca) {
+            statusTexto += ` - ${func.tarefa_atual.carga.nome_doca}`;
+          }
           statusTexto += ` - ${func.tarefa_atual.carga.numero_carga}`;
           if (func.tarefa_atual.carga.total_workers > 1) {
             statusTexto += ` (${func.tarefa_atual.carga.total_workers} trab.)`;
@@ -117,6 +120,7 @@ const Gestor = {
               <th>Inicio</th>
               <th>Fim</th>
               <th>Status</th>
+              <th>Doca</th>
               <th>Carga</th>
               <th>Vol.</th>
             </tr>
@@ -132,14 +136,16 @@ const Gestor = {
 
       const inicio = reg.data_inicio ? new Date(reg.data_inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
       const fim = reg.data_fim ? new Date(reg.data_fim).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      const nomeFunc = reg.nome_func || reg.codigo_func;
 
       return `
         <tr>
-          <td>${reg.codigo_func}</td>
+          <td>${nomeFunc}</td>
           <td>${reg.nome_tarefa}</td>
           <td>${inicio}</td>
           <td>${fim}</td>
           <td><span class="badge ${badgeClass}">${reg.status}</span></td>
+          <td>${reg.nome_doca || '-'}</td>
           <td>${reg.numero_carga || '-'}</td>
           <td>${reg.volumes_proporcionais != null ? reg.volumes_proporcionais : (reg.qtd_volumes || '-')}</td>
         </tr>
