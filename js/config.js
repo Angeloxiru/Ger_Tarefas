@@ -3,7 +3,7 @@
 
 const CONFIG = {
   // URL do Google Apps Script publicado como Web App
-  API_URL: 'https://script.google.com/macros/s/AKfycbwv-vhYbMsyNEEdBWZ05x3n4ztzcVMkrxBI5DAZ2c65ie6wQUD8Pk7ikP-XeQGrqanu/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbyxs81ApDbFu_qPAWrUYjXLLdkRggkFQqe1qiYvG_h1Zo4oXlvKiNymsZpWLQj8sxHB/exec',
 
   // Tempo em ms para considerar alerta (3 horas = 10800000 ms)
   ALERTA_MS: 3 * 60 * 60 * 1000,
