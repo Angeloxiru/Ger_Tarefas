@@ -25,8 +25,35 @@
       <p>Processando...</p>
     </div>
 
-    <!-- Etapa 1: Scan do QRcode da carga -->
-    <div id="etapa-scan" class="card">
+    <!-- Etapa 1: Scan da Doca -->
+    <div id="etapa-doca" class="card">
+      <h2 class="card-title text-center mb-12">Doca</h2>
+
+      <div class="scan-area" style="margin:0 auto;max-width:300px;">
+        <div id="reader-doca"></div>
+      </div>
+
+      <button id="btn-scan-doca" class="btn btn-primary btn-lg mt-12" onclick="iniciarScanDoca()">
+        Escanear Doca
+      </button>
+
+      <div class="mt-12">
+        <div class="form-group">
+          <label>Doca</label>
+          <input type="text" id="input-doca" class="input-text" placeholder="Leia a doca">
+        </div>
+        <button class="btn btn-primary mt-8" onclick="confirmarDoca()">
+          Confirmar Doca
+        </button>
+      </div>
+
+      <button class="btn btn-secondary mt-12" onclick="voltarPainel()">
+        Voltar ao Painel
+      </button>
+    </div>
+
+    <!-- Etapa 2: Scan do QRcode da carga -->
+    <div id="etapa-scan" class="card hidden">
       <h2 class="card-title text-center mb-12">Escaneie o QRcode da carga</h2>
 
       <div class="scan-area" style="margin:0 auto;max-width:300px;">
@@ -69,6 +96,10 @@
 
         <!-- Info da carga -->
         <div class="carga-info">
+          <div class="info-row">
+            <span class="label">Doca:</span>
+            <span id="carga-doca" class="value"></span>
+          </div>
           <div class="info-row">
             <span class="label">Carga:</span>
             <span id="carga-numero" class="value"></span>
@@ -125,7 +156,9 @@
     let tarefaCarregamento = null;
     let registroAtual = null;
     let dadosCarga = null;
+    let docaAtual = null;
     let scanAtivo = false;
+    let scanDocaAtivo = false;
 
     // Inicializacao
     function init() {
@@ -144,6 +177,43 @@
         return;
       }
       tarefaCarregamento = JSON.parse(tarefaStr);
+    }
+
+    // Iniciar scan da doca
+    async function iniciarScanDoca() {
+      if (scanDocaAtivo) {
+        await Scanner.parar();
+        scanDocaAtivo = false;
+        document.getElementById('btn-scan-doca').textContent = 'Escanear Doca';
+        return;
+      }
+
+      mostrarMsg('Posicione o QRcode da doca na camera...', 'info');
+
+      const sucesso = await Scanner.iniciar('reader-doca', async (texto) => {
+        scanDocaAtivo = false;
+        document.getElementById('btn-scan-doca').textContent = 'Escanear Doca';
+        document.getElementById('input-doca').value = texto.trim();
+        confirmarDoca();
+      });
+
+      if (sucesso) {
+        scanDocaAtivo = true;
+        document.getElementById('btn-scan-doca').textContent = 'Parar Camera';
+      } else {
+        mostrarMsg('Nao foi possivel acessar a camera. Insira manualmente.', 'error');
+      }
+    }
+
+    // Confirmar doca e avancar para scan da carga
+    function confirmarDoca() {
+      const doca = document.getElementById('input-doca').value.trim();
+      if (!doca) {
+        mostrarMsg('Informe a doca.', 'warning');
+        return;
+      }
+      docaAtual = doca;
+      mostrarEtapa('scan');
     }
 
     // Iniciar scan da carga
@@ -224,7 +294,8 @@
         funcionario.codigo,
         registroAtual.id_registro,
         numeroCarga,
-        qtdVolumes
+        qtdVolumes,
+        docaAtual
       );
 
       mostrarLoading(false);
@@ -236,7 +307,8 @@
 
       dadosCarga = {
         numero_carga: numeroCarga,
-        qtd_volumes: qtdVolumes
+        qtd_volumes: qtdVolumes,
+        doca: docaAtual
       };
 
       // Limpar dados da tarefa no sessionStorage
@@ -250,6 +322,7 @@
     function mostrarAndamento() {
       document.getElementById('tarefa-nome').textContent =
         dadosCarga.numero_carga;
+      document.getElementById('carga-doca').textContent = dadosCarga.doca || '-';
       document.getElementById('carga-numero').textContent = dadosCarga.numero_carga;
       document.getElementById('carga-volumes-total').textContent = dadosCarga.qtd_volumes;
 
@@ -301,6 +374,10 @@
     function mostrarResultado(dados) {
       const infoHtml = `
         <div class="info-row">
+          <span class="label">Doca:</span>
+          <span class="value">${dadosCarga.doca || '-'}</span>
+        </div>
+        <div class="info-row">
           <span class="label">Carga:</span>
           <span class="value">${dadosCarga.numero_carga}</span>
         </div>
@@ -347,6 +424,7 @@
 
     // Alternar etapas
     function mostrarEtapa(etapa) {
+      document.getElementById('etapa-doca').classList.toggle('hidden', etapa !== 'doca');
       document.getElementById('etapa-scan').classList.toggle('hidden', etapa !== 'scan');
       document.getElementById('etapa-andamento').classList.toggle('hidden', etapa !== 'andamento');
       document.getElementById('etapa-resultado').classList.toggle('hidden', etapa !== 'resultado');

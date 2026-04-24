@@ -210,6 +210,7 @@ function buscarCargaDoRegistro(idRegistro) {
   var idxCodFunc = headers.indexOf('codigo_func');
   var idxNumCarga = headers.indexOf('numero_carga');
   var idxQtdVol = headers.indexOf('qtd_volumes');
+  var idxDoca = headers.indexOf('doca');
   var idxDataLeitura = headers.indexOf('data_leitura');
 
   for (var i = 1; i < dados.length; i++) {
@@ -217,6 +218,7 @@ function buscarCargaDoRegistro(idRegistro) {
       return {
         numero_carga: dados[i][idxNumCarga],
         qtd_volumes: dados[i][idxQtdVol],
+        doca: idxDoca >= 0 ? dados[i][idxDoca] : '',
         data_leitura: formatarData(dados[i][idxDataLeitura])
       };
     }
@@ -226,6 +228,7 @@ function buscarCargaDoRegistro(idRegistro) {
 }
 
 // Calcular distribuicao proporcional de volumes entre trabalhadores da mesma carga
+// Agrega por funcionario unico (se o mesmo func tem multiplos registros, soma os tempos)
 function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   var sheetCargas = getSheet('Cargas');
   var dadosCargas = sheetCargas.getDataRange().getValues();
@@ -235,7 +238,6 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   var idxCodFunc = headersCargas.indexOf('codigo_func');
   var idxNumCarga = headersCargas.indexOf('numero_carga');
 
-  // Encontrar todos os registros da mesma carga
   var registrosCarga = [];
   for (var i = 1; i < dadosCargas.length; i++) {
     if (dadosCargas[i][idxNumCarga] === numeroCarga) {
@@ -248,18 +250,15 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
 
   if (registrosCarga.length === 0) return [];
 
-  // Buscar dados de cada registro na aba Registros
   var sheetReg = getSheet('Registros');
   var dadosReg = sheetReg.getDataRange().getValues();
   var headersReg = dadosReg[0];
 
   var idxRegId = headersReg.indexOf('id_registro');
-  var idxRegCodFunc = headersReg.indexOf('codigo_func');
   var idxRegDataInicio = headersReg.indexOf('data_inicio');
   var idxRegDataFim = headersReg.indexOf('data_fim');
   var idxRegStatus = headersReg.indexOf('status');
 
-  // Buscar nomes dos funcionarios
   var sheetFunc = getSheet('Funcionarios');
   var dadosFunc = sheetFunc.getDataRange().getValues();
   var headersFunc = dadosFunc[0];
@@ -272,55 +271,65 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   }
 
   var agora = new Date();
-  var workersFinalizados = [];
-  var workersEmAndamento = [];
+
+  // Agrupar por funcionario unico, somando tempos de multiplos registros
+  var mapaWorkers = {};
 
   for (var j = 0; j < registrosCarga.length; j++) {
     var rc = registrosCarga[j];
+    var codFunc = String(rc.codigo_func).trim().toUpperCase();
 
     for (var k = 1; k < dadosReg.length; k++) {
       if (dadosReg[k][idxRegId] === rc.id_registro) {
         var status = dadosReg[k][idxRegStatus];
 
-        // Timeout = excluido da distribuicao
         if (status === 'timeout') break;
 
         var dataInicio = new Date(dadosReg[k][idxRegDataInicio]);
-        var dataFim;
-
-        if (status === 'finalizada') {
-          dataFim = new Date(dadosReg[k][idxRegDataFim]);
-        } else {
-          dataFim = agora; // em_andamento: conta ate agora
-        }
-
+        var dataFim = status === 'finalizada'
+          ? new Date(dadosReg[k][idxRegDataFim])
+          : agora;
         var tempoMs = Math.max(dataFim.getTime() - dataInicio.getTime(), 60000);
 
-        var worker = {
-          codigo_func: rc.codigo_func,
-          nome_func: mapaNomes[String(rc.codigo_func).trim().toUpperCase()] || rc.codigo_func,
-          data_inicio: dataInicio.toISOString(),
-          data_fim: dataFim.toISOString(),
-          status: status,
-          tempo_ms: tempoMs
-        };
-
-        if (status === 'finalizada') {
-          workersFinalizados.push(worker);
-        } else {
-          workersEmAndamento.push(worker);
+        if (!mapaWorkers[codFunc]) {
+          mapaWorkers[codFunc] = {
+            codigo_func: rc.codigo_func,
+            nome_func: mapaNomes[codFunc] || rc.codigo_func,
+            tempo_ms: 0,
+            status: status,
+            data_inicio: dataInicio.toISOString(),
+            data_fim: dataFim.toISOString()
+          };
         }
+
+        mapaWorkers[codFunc].tempo_ms += tempoMs;
+
+        // Se qualquer registro esta finalizado, o worker conta como finalizado
+        if (status === 'finalizada') {
+          mapaWorkers[codFunc].status = 'finalizada';
+        }
+
         break;
       }
     }
   }
 
-  // Usar apenas finalizados; se nenhum ainda (todos em andamento), usar todos em andamento
+  // Separar finalizados e em_andamento
+  var workersFinalizados = [];
+  var workersEmAndamento = [];
+
+  for (var cod in mapaWorkers) {
+    if (mapaWorkers[cod].status === 'finalizada') {
+      workersFinalizados.push(mapaWorkers[cod]);
+    } else {
+      workersEmAndamento.push(mapaWorkers[cod]);
+    }
+  }
+
   var workers = workersFinalizados.length > 0 ? workersFinalizados : workersEmAndamento;
 
   if (workers.length === 0) return [];
 
-  // Calcular proporcao
   var tempoTotal = 0;
   for (var w = 0; w < workers.length; w++) {
     tempoTotal += workers[w].tempo_ms;
@@ -331,7 +340,6 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
     var volumesProporcional;
 
     if (w2 === workers.length - 1) {
-      // Ultimo recebe o restante
       volumesProporcional = totalVolumes - volumesDistribuidos;
     } else {
       volumesProporcional = Math.round((workers[w2].tempo_ms / tempoTotal) * totalVolumes);
