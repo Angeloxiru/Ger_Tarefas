@@ -22,6 +22,7 @@ function Carregamento_registrar(dados) {
     dados.codigo_func,
     dados.numero_carga,
     dados.qtd_volumes,
+    dados.doca || '',
     agora
   ]);
 
@@ -101,22 +102,43 @@ function Carregamento_workersCarga(numeroCarga) {
     mapaNomes[String(dadosFunc[f][idxFuncCodigo]).trim().toUpperCase()] = dadosFunc[f][idxFuncNome];
   }
 
-  var workers = [];
+  // Agrupar por funcionario unico (mesmo func pode ter multiplos registros na mesma carga)
+  var mapaWorkers = {};
   for (var j = 0; j < registrosCarga.length; j++) {
     var rc = registrosCarga[j];
+    var codFunc = String(rc.codigo_func).trim().toUpperCase();
 
     for (var k = 1; k < dadosReg.length; k++) {
       if (dadosReg[k][idxRegId] === rc.id_registro) {
-        workers.push({
-          codigo_func: rc.codigo_func,
-          nome_func: mapaNomes[String(rc.codigo_func).trim().toUpperCase()] || rc.codigo_func,
-          data_inicio: formatarData(dadosReg[k][idxRegDataInicio]),
-          data_fim: dadosReg[k][idxRegDataFim] ? formatarData(dadosReg[k][idxRegDataFim]) : null,
-          status: dadosReg[k][idxRegStatus]
-        });
+        var status = dadosReg[k][idxRegStatus];
+        var dataInicio = dadosReg[k][idxRegDataInicio];
+        var dataFim = dadosReg[k][idxRegDataFim];
+
+        if (!mapaWorkers[codFunc]) {
+          mapaWorkers[codFunc] = {
+            codigo_func: rc.codigo_func,
+            nome_func: mapaNomes[codFunc] || rc.codigo_func,
+            data_inicio: formatarData(dataInicio),
+            data_fim: dataFim ? formatarData(dataFim) : null,
+            status: status
+          };
+        } else {
+          if (status === 'finalizada') mapaWorkers[codFunc].status = 'finalizada';
+          if (status === 'em_andamento') {
+            mapaWorkers[codFunc].data_fim = null;
+            if (mapaWorkers[codFunc].status !== 'finalizada') {
+              mapaWorkers[codFunc].status = 'em_andamento';
+            }
+          }
+        }
         break;
       }
     }
+  }
+
+  var workers = [];
+  for (var cod in mapaWorkers) {
+    workers.push(mapaWorkers[cod]);
   }
 
   // Buscar total de volumes da carga

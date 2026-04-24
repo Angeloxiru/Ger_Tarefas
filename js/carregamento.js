@@ -4,13 +4,14 @@
 const Carregamento = {
   intervaloWorkers: null,
 
-  async registrarCarga(codigoFunc, idRegistro, numeroCarga, qtdVolumes) {
+  async registrarCarga(codigoFunc, idRegistro, numeroCarga, qtdVolumes, doca) {
     return await API.get({
       acao: 'registrar_carga',
       codigo_func: codigoFunc,
       id_registro: idRegistro,
       numero_carga: numeroCarga,
-      qtd_volumes: qtdVolumes
+      qtd_volumes: qtdVolumes,
+      doca: doca || ''
     });
   },
 
@@ -26,18 +27,30 @@ const Carregamento = {
 
     const agora = Date.now();
 
-    // Timeout = excluido; calcular apenas finalizados ou em andamento
-    const validos = workers
-      .filter(w => w.status !== 'timeout')
-      .map(w => {
-        const inicio = new Date(w.data_inicio).getTime();
-        const fim = w.status === 'finalizada'
-          ? new Date(w.data_fim).getTime()
-          : agora;
-        return { ...w, tempo_ms: Math.max(fim - inicio, 60000) };
-      });
+    // Agrupar por funcionario unico, somando tempos de multiplos registros
+    const mapaWorkers = {};
+    workers.forEach(w => {
+      if (w.status === 'timeout') return;
 
-    // Priorizar finalizados; se nenhum ainda, usar em_andamento
+      const cod = (w.codigo_func || '').toString().trim().toUpperCase();
+      const inicio = new Date(w.data_inicio).getTime();
+      const fim = w.status === 'finalizada' ? new Date(w.data_fim).getTime() : agora;
+      const tempo = Math.max(fim - inicio, 60000);
+
+      if (!mapaWorkers[cod]) {
+        mapaWorkers[cod] = {
+          codigo_func: w.codigo_func,
+          nome_func: w.nome_func || w.codigo_func,
+          tempo_ms: 0,
+          status: w.status
+        };
+      }
+
+      mapaWorkers[cod].tempo_ms += tempo;
+      if (w.status === 'finalizada') mapaWorkers[cod].status = 'finalizada';
+    });
+
+    const validos = Object.values(mapaWorkers);
     const finalizados = validos.filter(w => w.status === 'finalizada');
     const paraCalculo = finalizados.length > 0 ? finalizados : validos;
 
