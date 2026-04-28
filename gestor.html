@@ -78,8 +78,11 @@
 
       <!-- Lista de tarefas (quando nao tem tarefa ativa) -->
       <div id="gestor-secao-tarefas" class="hidden">
-        <h2 class="card-title mb-12">Selecione uma tarefa:</h2>
-        <div id="gestor-lista-tarefas" class="task-list"></div>
+        <div id="gestor-btn-carregamento"></div>
+        <button id="gestor-btn-outras" class="btn btn-secondary btn-lg mt-12" onclick="gestorToggleOutrasTarefas()" style="display:none;">
+          Outras Tarefas
+        </button>
+        <div id="gestor-lista-outras-tarefas" class="task-list hidden mt-12"></div>
       </div>
 
       <!-- Tarefa em andamento -->
@@ -160,7 +163,7 @@
         <div class="form-group">
           <label>Funcionario</label>
           <div class="input-group">
-            <input type="text" id="alerta-func-codigo" class="input-text" placeholder="Codigo do cracha" onkeydown="if(event.key==='Enter')document.getElementById('alerta-descricao').focus()">
+            <input type="text" id="alerta-func-codigo" class="input-text" placeholder="Codigo do cracha" onkeydown="if(event.key==='Enter'){event.preventDefault();selecionarFuncionarioAlerta(this.value.trim().toUpperCase());document.getElementById('alerta-descricao').focus();}">
             <button class="btn btn-primary" onclick="scanFuncionarioAlerta()" style="width:auto;padding:12px 16px;">
               Escanear
             </button>
@@ -364,22 +367,38 @@
         return;
       }
 
-      const container = document.getElementById('gestor-lista-tarefas');
       const tarefas = resultado.dados;
 
       if (!tarefas || tarefas.length === 0) {
-        container.innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponivel.</p></div>';
+        document.getElementById('gestor-btn-carregamento').innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponivel.</p></div>';
       } else {
-        container.innerHTML = tarefas.map(tarefa => `
-          <div class="task-item" onclick="gestorIniciarTarefa('${tarefa.id_tarefa}', '${tarefa.nome}', ${tarefa.usa_qrcode_carga})">
-            <span class="task-name">${tarefa.nome}</span>
-            <span class="task-arrow">&rsaquo;</span>
-          </div>
+        const carregamento = tarefas.filter(t => t.usa_qrcode_carga);
+        const outras = tarefas.filter(t => !t.usa_qrcode_carga);
+
+        document.getElementById('gestor-btn-carregamento').innerHTML = carregamento.map(t => `
+          <button class="btn btn-primary btn-lg" style="width:100%;padding:20px;font-size:1.2rem;" onclick="gestorIniciarTarefa('${t.id_tarefa}', '${t.nome}', true)">
+            ${t.nome}
+          </button>
         `).join('');
+
+        const containerOutras = document.getElementById('gestor-lista-outras-tarefas');
+        if (outras.length > 0) {
+          document.getElementById('gestor-btn-outras').style.display = '';
+          containerOutras.innerHTML = outras.map(t => `
+            <div class="task-item" onclick="gestorIniciarTarefa('${t.id_tarefa}', '${t.nome}', false)">
+              <span class="task-name">${t.nome}</span>
+              <span class="task-arrow">&rsaquo;</span>
+            </div>
+          `).join('');
+        }
       }
 
       document.getElementById('gestor-secao-tarefas').classList.remove('hidden');
       document.getElementById('gestor-secao-ativa').classList.add('hidden');
+    }
+
+    function gestorToggleOutrasTarefas() {
+      document.getElementById('gestor-lista-outras-tarefas').classList.toggle('hidden');
     }
 
     async function gestorIniciarTarefa(idTarefa, nomeTarefa, usaQrcodeCarga) {
@@ -508,10 +527,17 @@
       selecionarFuncionarioHist(codigo);
     }
 
-    function selecionarFuncionarioHist(codigo) {
+    async function selecionarFuncionarioHist(codigo) {
       document.getElementById('hist-func-codigo').value = codigo;
-      document.getElementById('hist-func-nome').textContent = 'Cracha: ' + codigo;
+      document.getElementById('hist-func-nome').textContent = 'Buscando...';
       fecharScanFunc();
+
+      const resultado = await API.get({ acao: 'verificar_cracha', codigo: codigo });
+      if (resultado.sucesso && resultado.dados) {
+        document.getElementById('hist-func-nome').textContent = resultado.dados.nome || ('Cracha: ' + codigo);
+      } else {
+        document.getElementById('hist-func-nome').textContent = 'Cracha: ' + codigo;
+      }
     }
 
     async function fecharScanFunc() {
@@ -581,10 +607,21 @@
       selecionarFuncionarioAlerta(codigo);
     }
 
-    function selecionarFuncionarioAlerta(codigo) {
+    async function selecionarFuncionarioAlerta(codigo) {
+      if (!codigo) return;
       document.getElementById('alerta-func-codigo').value = codigo;
-      document.getElementById('alerta-func-nome').textContent = 'Cracha: ' + codigo;
+      const nomeEl = document.getElementById('alerta-func-nome');
+      nomeEl.textContent = 'Buscando...';
+      nomeEl.style.color = '#1a73e8';
       fecharScanAlerta();
+
+      const resultado = await API.get({ acao: 'verificar_cracha', codigo: codigo });
+      if (resultado.sucesso && resultado.dados) {
+        nomeEl.textContent = resultado.dados.nome || ('Cracha: ' + codigo);
+      } else {
+        nomeEl.textContent = 'Cracha nao encontrado: ' + codigo;
+        nomeEl.style.color = '#ef4444';
+      }
     }
 
     async function fecharScanAlerta() {
