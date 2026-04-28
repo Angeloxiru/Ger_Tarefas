@@ -11,9 +11,9 @@ Sistema web para registro de atividades operacionais em tempo real, utilizado po
 ```
 Ger_Tarefas/
 ├── index.html              # Login (scan QRcode cracha + senha opcional)
-├── painel.html             # Painel do funcionario (lista de tarefas)
+├── painel.html             # Painel do funcionario (tarefas + alertas)
 ├── carregamento.html       # Fluxo: Doca -> Carga -> Andamento -> Resultado
-├── gestor.html             # Painel do gestor (4 abas)
+├── gestor.html             # Painel do gestor (5 abas)
 │
 ├── css/
 │   └── style.css           # Estilos responsivos (tela 4.3" MC22)
@@ -25,14 +25,14 @@ Ger_Tarefas/
 │   ├── scanner.js          # Leitura de QRcode via camera
 │   ├── tarefas.js          # Iniciar/finalizar tarefas + cronometro
 │   ├── carregamento.js     # Distribuicao de volumes entre workers
-│   └── gestor.js           # Dashboard, historico, cadastros
+│   └── gestor.js           # Dashboard, historico, cadastros, alertas
 │
 ├── apps-script/
 │   ├── Code.gs             # Roteador principal (doGet/doPost)
 │   ├── Auth.gs             # Autenticacao (cracha + senha condicional)
 │   ├── Tarefas.gs          # CRUD de tarefas e registros + distribuicao
 │   ├── Carregamento.gs     # Registro de cargas e workers
-│   ├── Gestor.gs           # Painel gestor + historico + cadastros
+│   ├── Gestor.gs           # Painel gestor + historico + cadastros + alertas
 │   ├── Timeout.gs          # Auto-timeout via trigger (30 min)
 │   └── Utils.gs            # Utilitarios (getSheet, buscarNomeDoca, etc)
 │
@@ -41,7 +41,7 @@ Ger_Tarefas/
 
 ---
 
-## Google Sheets - Estrutura (6 abas)
+## Google Sheets - Estrutura (7 abas)
 
 ### Funcionarios
 | Coluna | Tipo | Exemplo | Descricao |
@@ -90,6 +90,14 @@ Ger_Tarefas/
 | codigo | texto | D01 | Codigo do QRcode da doca |
 | doca | texto | Doca Norte | Nome da doca exibido no sistema |
 
+### Alertas
+| Coluna | Tipo | Exemplo | Descricao |
+|--------|------|---------|-----------|
+| id_registro | texto | A20240115143022PL4 | ID unico do alerta |
+| codigo_func | texto | PL4 | Funcionario que recebeu o alerta |
+| data_alerta | datetime | 2024-01-15 14:30:22 | Data/hora do registro |
+| descricao | texto | Atraso recorrente | Descricao do alerta |
+
 ### Config
 | Coluna | Tipo | Exemplo | Descricao |
 |--------|------|---------|-----------|
@@ -121,6 +129,8 @@ Todos via parametro `acao` no GET. POST tambem suportado, com fallback JSONP par
 | `distribuicao_carga` | Distribuicao calculada de volumes |
 | `painel_gestor` | Visao geral de todos os funcionarios |
 | `historico` | Registros filtrados por data e funcionario |
+| `registrar_alerta` | Registra alerta para um funcionario |
+| `listar_alertas` | Lista alertas (todos ou de um funcionario) |
 | `cadastrar_funcionario` | Cadastra novo funcionario (com senha) |
 | `cadastrar_tarefa` | Cadastra nova tarefa |
 
@@ -155,10 +165,30 @@ Comunicacao: `api.js` tenta `fetch()` primeiro; se falhar por CORS, usa JSONP (i
 ### Distribuicao de volumes (multiplos workers)
 Quando mais de um funcionario trabalha na mesma carga:
 - Volumes sao distribuidos **proporcionalmente ao tempo de execucao** de cada um
-- Workers com status `timeout` sao **excluidos** da distribuicao (aparcem riscados em vermelho)
+- Workers com status `timeout` sao **excluidos** da distribuicao (aparecem riscados em vermelho)
 - Se o mesmo funcionario tem multiplos registros na mesma carga, seus tempos sao **somados** (agrupamento por worker unico)
 - Monitoramento em tempo real a cada 15 segundos
 - Ultimo worker recebe o restante (evita erro de arredondamento)
+
+---
+
+## Compatibilidade com Zebra MC22
+
+O coletor Zebra MC22 envia automaticamente a tecla **Enter** apos cada leitura de QRcode. Todos os campos de input do sistema respondem ao Enter disparando a acao do botao correspondente, eliminando a necessidade de tocar na tela apos o scan:
+
+- **Login**: scan do cracha -> avanca automaticamente
+- **Doca**: scan da doca -> confirma e avanca para carga
+- **Carga**: scan da carga -> registra automaticamente
+- **Modais de scan**: codigo digitado + Enter -> confirma
+
+---
+
+## Sistema de Alertas
+
+Gestores podem registrar alertas para funcionarios (advertencias, observacoes, etc):
+
+- **Gestor** (aba "Alertas"): escaneia o cracha do funcionario, escreve a descricao e registra. Visualiza lista de todos os alertas recentes
+- **Funcionario** (painel): ao fazer login, ve a secao "Meus Alertas" com todos os alertas recebidos, ordenados do mais recente
 
 ---
 
@@ -176,12 +206,13 @@ Workers com timeout sao excluidos da distribuicao de volumes — apenas quem fin
 
 ---
 
-## Painel do gestor (4 abas)
+## Painel do gestor (5 abas)
 
 1. **Tempo Real**: Lista de funcionarios com status (ocioso/em andamento/alerta/timeout), filtros por tarefa e status, mostra doca e carga quando aplicavel
 2. **Tarefas**: Mesmo painel do funcionario — gestores tambem executam tarefas
-3. **Historico**: Filtro por data + Todos/Individual (scan QRcode do funcionario). Tabela com nome do funcionario, tarefa, doca, carga, volumes proporcionais e status
-4. **Cadastro**: Cadastro de funcionarios (com senha) e tarefas
+3. **Historico**: Filtro por data + Todos/Individual (scan QRcode do funcionario). Tabela com nome do funcionario, tarefa, doca, carga, volumes proporcionais e status. Usa cache de distribuicao por carga para evitar timeout
+4. **Alertas**: Registrar alertas para funcionarios (scan do cracha + descricao) e visualizar alertas recentes
+5. **Cadastro**: Cadastro de funcionarios (com senha) e tarefas
 
 ---
 
@@ -208,7 +239,7 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 ### Google Sheets
 - **ID da planilha**: `1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y`
 - [Link da planilha](https://docs.google.com/spreadsheets/d/1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y/edit?usp=sharing)
-- 6 abas: Funcionarios, Tarefas, Registros, Cargas, Docas, Config
+- 7 abas: Funcionarios, Tarefas, Registros, Cargas, Docas, Alertas, Config
 
 ### Google Apps Script
 1. Copiar todos os arquivos `.gs` da pasta `apps-script/` para o projeto
@@ -223,6 +254,7 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 ### Zebra MC22
 - Navegador Chrome Android, tela 4.3"
 - Camera traseira para QRcode (biblioteca html5-qrcode via CDN)
+- Scanner embutido envia Enter apos leitura — sistema responde automaticamente
 - Conexao WiFi
 
 ---
@@ -232,4 +264,5 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 - Google Apps Script: 6 min/execucao, ~20.000 chamadas/dia
 - Google Sheets: performance degrada acima de ~50.000 linhas por aba
 - Latencia: 1-3 segundos por requisicao
+- Historico usa cache de distribuicao por carga para evitar timeout em consultas grandes
 - Sugestao: rotina mensal para arquivar registros antigos
