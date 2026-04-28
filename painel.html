@@ -31,6 +31,12 @@
       <div id="lista-tarefas" class="task-list"></div>
     </div>
 
+    <!-- Alertas do funcionario -->
+    <div id="secao-alertas" class="hidden">
+      <h2 class="card-title mb-12" style="color:#ef4444;">Meus Alertas</h2>
+      <div id="lista-meus-alertas"></div>
+    </div>
+
     <!-- Tarefa em andamento -->
     <div id="secao-ativa" class="hidden">
       <div class="card active-task">
@@ -73,6 +79,7 @@
   <script src="js/auth.js"></script>
   <script src="js/tarefas.js"></script>
   <script src="js/carregamento.js"></script>
+  <script src="js/gestor.js"></script>
   <script>
     let funcionario = null;
     let registroAtual = null;
@@ -85,6 +92,27 @@
       Auth.atualizarHeader();
 
       await verificarStatus();
+      await carregarMeusAlertas();
+    }
+
+    async function carregarMeusAlertas() {
+      const resultado = await API.get({ acao: 'listar_alertas', codigo_func: funcionario.codigo });
+      if (resultado.sucesso && resultado.dados && resultado.dados.length > 0) {
+        const container = document.getElementById('lista-meus-alertas');
+        container.innerHTML = resultado.dados.map(a => {
+          const data = a.data_alerta ? new Date(a.data_alerta).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+          return `
+            <div class="card" style="margin-bottom:8px;border-left:4px solid #ef4444;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <strong style="color:#ef4444;">Alerta</strong>
+                <span style="font-size:0.75rem;color:#666;">${data}</span>
+              </div>
+              <div style="font-size:0.9rem;">${a.descricao}</div>
+            </div>
+          `;
+        }).join('');
+        document.getElementById('secao-alertas').classList.remove('hidden');
+      }
     }
 
     // Verificar se tem tarefa em andamento

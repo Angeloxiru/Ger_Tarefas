@@ -23,6 +23,7 @@
       <button class="tab ativo" data-tab="tempo-real" onclick="trocarTab('tempo-real')">Tempo Real</button>
       <button class="tab" data-tab="tarefas" onclick="trocarTab('tarefas')">Tarefas</button>
       <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Historico</button>
+      <button class="tab" data-tab="alertas" onclick="trocarTab('alertas')">Alertas</button>
       <button class="tab" data-tab="cadastro" onclick="trocarTab('cadastro')">Cadastro</button>
     </div>
 
@@ -152,6 +153,44 @@
       <div id="tabela-historico"></div>
     </div>
 
+    <!-- Tab: Alertas -->
+    <div id="tab-alertas" class="tab-content">
+      <div class="card">
+        <h3 class="card-title mb-12">Registrar Alerta</h3>
+        <div class="form-group">
+          <label>Funcionario</label>
+          <div class="input-group">
+            <input type="text" id="alerta-func-codigo" class="input-text" placeholder="Codigo do cracha" onkeydown="if(event.key==='Enter')document.getElementById('alerta-descricao').focus()">
+            <button class="btn btn-primary" onclick="scanFuncionarioAlerta()" style="width:auto;padding:12px 16px;">
+              Escanear
+            </button>
+          </div>
+          <div id="alerta-func-nome" style="font-size:0.85rem;color:#1a73e8;margin-top:4px;min-height:20px;"></div>
+        </div>
+        <div class="form-group">
+          <label>Descricao do alerta</label>
+          <textarea id="alerta-descricao" class="input-text" rows="3" placeholder="Descreva o alerta..." style="resize:vertical;"></textarea>
+        </div>
+        <button class="btn btn-danger" onclick="registrarAlerta()">Registrar Alerta</button>
+      </div>
+
+      <h3 class="card-title mt-12 mb-12">Alertas Recentes</h3>
+      <div id="lista-alertas-gestor"></div>
+    </div>
+
+    <!-- Modal scan funcionario alerta -->
+    <div id="modal-scan-alerta" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-title">Escanear Cracha</div>
+        <div id="reader-alerta" style="width:100%;max-width:280px;margin:0 auto;border-radius:10px;overflow:hidden;"></div>
+        <div class="input-group mt-12">
+          <input type="text" id="scan-alerta-manual" class="input-text" placeholder="Ou digite o codigo" maxlength="10" onkeydown="if(event.key==='Enter')confirmarAlertaFuncManual()">
+          <button class="btn btn-primary" onclick="confirmarAlertaFuncManual()" style="width:auto;padding:12px 16px;">OK</button>
+        </div>
+        <button class="btn btn-secondary mt-12" onclick="fecharScanAlerta()">Cancelar</button>
+      </div>
+    </div>
+
     <!-- Tab: Cadastro -->
     <div id="tab-cadastro" class="tab-content">
       <div class="card">
@@ -209,7 +248,7 @@
         <div class="modal-title">Escanear Cracha</div>
         <div id="reader-hist" style="width:100%;max-width:280px;margin:0 auto;border-radius:10px;overflow:hidden;"></div>
         <div class="input-group mt-12">
-          <input type="text" id="scan-func-manual" class="input-text" placeholder="Ou digite o codigo" maxlength="10">
+          <input type="text" id="scan-func-manual" class="input-text" placeholder="Ou digite o codigo" maxlength="10" onkeydown="if(event.key==='Enter')confirmarFuncManual()">
           <button class="btn btn-primary" onclick="confirmarFuncManual()" style="width:auto;padding:12px 16px;">OK</button>
         </div>
         <button class="btn btn-secondary mt-12" onclick="fecharScanFunc()">Cancelar</button>
@@ -514,6 +553,77 @@
       Gestor.renderizarHistorico('tabela-historico', resultado.dados);
     }
 
+    // === ALERTAS ===
+
+    let scanAlertaAtivo = false;
+
+    async function scanFuncionarioAlerta() {
+      document.getElementById('modal-scan-alerta').classList.add('visivel');
+      document.getElementById('scan-alerta-manual').value = '';
+
+      const sucesso = await Scanner.iniciar('reader-alerta', (codigo) => {
+        selecionarFuncionarioAlerta(codigo.trim().toUpperCase());
+      });
+
+      if (!sucesso) {
+        mostrarMsg('Camera indisponivel. Use o campo manual.', 'warning');
+      } else {
+        scanAlertaAtivo = true;
+      }
+    }
+
+    function confirmarAlertaFuncManual() {
+      const codigo = document.getElementById('scan-alerta-manual').value.trim().toUpperCase();
+      if (!codigo) {
+        mostrarMsg('Digite o codigo do cracha.', 'warning');
+        return;
+      }
+      selecionarFuncionarioAlerta(codigo);
+    }
+
+    function selecionarFuncionarioAlerta(codigo) {
+      document.getElementById('alerta-func-codigo').value = codigo;
+      document.getElementById('alerta-func-nome').textContent = 'Cracha: ' + codigo;
+      fecharScanAlerta();
+    }
+
+    async function fecharScanAlerta() {
+      if (scanAlertaAtivo) {
+        await Scanner.parar();
+        scanAlertaAtivo = false;
+      }
+      document.getElementById('modal-scan-alerta').classList.remove('visivel');
+    }
+
+    async function registrarAlerta() {
+      const codigoFunc = document.getElementById('alerta-func-codigo').value.trim().toUpperCase();
+      const descricao = document.getElementById('alerta-descricao').value.trim();
+
+      if (!codigoFunc || !descricao) {
+        mostrarMsg('Informe o funcionario e a descricao do alerta.', 'warning');
+        return;
+      }
+
+      const resultado = await Gestor.registrarAlerta(codigoFunc, descricao);
+
+      if (resultado.sucesso) {
+        mostrarMsg(resultado.mensagem, 'success');
+        document.getElementById('alerta-func-codigo').value = '';
+        document.getElementById('alerta-func-nome').textContent = '';
+        document.getElementById('alerta-descricao').value = '';
+        await carregarAlertasGestor();
+      } else {
+        mostrarMsg(resultado.mensagem, 'error');
+      }
+    }
+
+    async function carregarAlertasGestor() {
+      const resultado = await Gestor.listarAlertas();
+      if (resultado.sucesso) {
+        Gestor.renderizarAlertas('lista-alertas-gestor', resultado.dados);
+      }
+    }
+
     // === CADASTRO ===
 
     async function cadastrarFuncionario() {
@@ -574,9 +684,10 @@
       document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('ativo');
       document.getElementById(`tab-${tabId}`).classList.add('ativo');
 
-      // Ao entrar na tab Tarefas, verificar status
       if (tabId === 'tarefas') {
         gestorVerificarStatus();
+      } else if (tabId === 'alertas') {
+        carregarAlertasGestor();
       }
     }
 

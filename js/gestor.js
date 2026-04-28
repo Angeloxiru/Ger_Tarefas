@@ -37,6 +37,43 @@ const Gestor = {
     });
   },
 
+  async registrarAlerta(codigoFunc, descricao) {
+    return await API.get({
+      acao: 'registrar_alerta',
+      codigo_func: codigoFunc,
+      descricao: descricao
+    });
+  },
+
+  async listarAlertas(codigoFunc) {
+    const params = { acao: 'listar_alertas' };
+    if (codigoFunc) params.codigo_func = codigoFunc;
+    return await API.get(params);
+  },
+
+  renderizarAlertas(containerId, alertas) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!alertas || alertas.length === 0) {
+      container.innerHTML = '<div class="card text-center"><p>Nenhum alerta encontrado.</p></div>';
+      return;
+    }
+
+    container.innerHTML = alertas.map(a => {
+      const data = a.data_alerta ? new Date(a.data_alerta).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      return `
+        <div class="card" style="margin-bottom:8px;border-left:4px solid #ef4444;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <strong style="color:#1a73e8;">${a.nome_func || a.codigo_func}</strong>
+            <span style="font-size:0.75rem;color:#666;">${data}</span>
+          </div>
+          <div style="font-size:0.9rem;">${a.descricao}</div>
+        </div>
+      `;
+    }).join('');
+  },
+
   async buscarDistribuicaoCarga(numeroCarga) {
     return await API.get({
       acao: 'distribuicao_carga',
