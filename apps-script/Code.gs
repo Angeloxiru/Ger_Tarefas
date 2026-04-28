@@ -59,6 +59,14 @@ function doGet(e) {
         resultado = Carregamento_registrar(e.parameter);
         break;
 
+      case 'registrar_alerta':
+        resultado = Gestor_registrarAlerta(e.parameter);
+        break;
+
+      case 'listar_alertas':
+        resultado = Gestor_listarAlertas(e.parameter.codigo_func);
+        break;
+
       case 'cadastrar_funcionario':
         resultado = Gestor_cadastrarFuncionario(e.parameter);
         break;
@@ -99,6 +107,10 @@ function doPost(e) {
 
       case 'registrar_carga':
         resultado = Carregamento_registrar(dados);
+        break;
+
+      case 'registrar_alerta':
+        resultado = Gestor_registrarAlerta(dados);
         break;
 
       case 'cadastrar_funcionario':

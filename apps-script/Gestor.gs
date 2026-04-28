@@ -198,17 +198,19 @@ function Gestor_historico(params) {
 
   var mapaNomes = buscarMapaNomes();
 
+  // Cache de nomes de docas e distribuicoes para evitar chamadas repetidas
+  var cacheDocas = {};
+  var cacheDist = {};
+
   var registros = [];
   for (var i = dados.length - 1; i >= 1; i--) {
     var row = dados[i];
 
-    // Filtrar por funcionarios
     if (filtroFuncionarios) {
       var codFuncReg = String(row[idxCodFunc]).trim().toUpperCase();
       if (filtroFuncionarios.indexOf(codFuncReg) === -1) continue;
     }
 
-    // Filtrar por data
     if (dataInicio || dataFim) {
       var dataReg = new Date(row[idxDataInicio]);
       if (dataInicio && dataReg < dataInicio) continue;
@@ -231,18 +233,28 @@ function Gestor_historico(params) {
       nome_doca: null
     };
 
-    // Enriquecer com dados de carga
     if (cargasPorRegistro[row[idxId]]) {
       var carga = cargasPorRegistro[row[idxId]];
       registro.numero_carga = carga.numero_carga;
       registro.qtd_volumes = carga.qtd_volumes;
-      registro.nome_doca = buscarNomeDoca(carga.doca);
 
-      // Calcular volumes proporcionais se finalizada
+      // Cache de nome da doca
+      if (carga.doca) {
+        if (cacheDocas[carga.doca] === undefined) {
+          cacheDocas[carga.doca] = buscarNomeDoca(carga.doca);
+        }
+        registro.nome_doca = cacheDocas[carga.doca];
+      }
+
+      // Cache de distribuicao por carga (evita recalcular para cada registro)
       if (registro.status === 'finalizada' || registro.status === 'timeout') {
-        var dist = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
+        var chaveCache = carga.numero_carga + '|' + carga.qtd_volumes;
+        if (cacheDist[chaveCache] === undefined) {
+          cacheDist[chaveCache] = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
+        }
+        var dist = cacheDist[chaveCache];
         for (var d = 0; d < dist.length; d++) {
-          if (dist[d].codigo_func === row[idxCodFunc]) {
+          if (String(dist[d].codigo_func).trim().toUpperCase() === codFuncUpper) {
             registro.volumes_proporcionais = dist[d].volumes_proporcionais;
             break;
           }
@@ -252,7 +264,6 @@ function Gestor_historico(params) {
 
     registros.push(registro);
 
-    // Limitar a 200 registros
     if (registros.length >= 200) break;
   }
 
@@ -289,6 +300,71 @@ function Gestor_cadastrarFuncionario(dados) {
   ]);
 
   return { sucesso: true, mensagem: 'Funcionario cadastrado com sucesso.' };
+}
+
+// Registrar alerta para um funcionario
+function Gestor_registrarAlerta(dados) {
+  if (!dados.codigo_func || !dados.descricao) {
+    return { sucesso: false, mensagem: 'Informe o funcionario e a descricao do alerta.' };
+  }
+
+  var codigoFunc = dados.codigo_func.trim().toUpperCase();
+
+  // Verificar se funcionario existe
+  var mapaNomes = buscarMapaNomes();
+  if (!mapaNomes[codigoFunc]) {
+    return { sucesso: false, mensagem: 'Funcionario nao encontrado: ' + codigoFunc };
+  }
+
+  var sheet = getSheet('Alertas');
+  var agora = new Date();
+  var idRegistro = 'A' + Utilities.formatDate(agora, Session.getScriptTimeZone(), 'yyyyMMddHHmmss') + codigoFunc;
+
+  sheet.appendRow([
+    idRegistro,
+    codigoFunc,
+    agora,
+    dados.descricao.trim()
+  ]);
+
+  return {
+    sucesso: true,
+    dados: { id_registro: idRegistro, nome_func: mapaNomes[codigoFunc] },
+    mensagem: 'Alerta registrado para ' + mapaNomes[codigoFunc] + '.'
+  };
+}
+
+// Listar alertas (todos ou de um funcionario)
+function Gestor_listarAlertas(codigoFunc) {
+  var sheet = getSheet('Alertas');
+  var dados = sheet.getDataRange().getValues();
+  var headers = dados[0];
+
+  var idxId = headers.indexOf('id_registro');
+  var idxCodFunc = headers.indexOf('codigo_func');
+  var idxData = headers.indexOf('data_alerta');
+  var idxDesc = headers.indexOf('descricao');
+
+  var mapaNomes = buscarMapaNomes();
+  var filtro = codigoFunc ? codigoFunc.trim().toUpperCase() : null;
+
+  var alertas = [];
+  for (var i = dados.length - 1; i >= 1; i--) {
+    var cod = String(dados[i][idxCodFunc]).trim().toUpperCase();
+    if (filtro && cod !== filtro) continue;
+
+    alertas.push({
+      id_registro: dados[i][idxId],
+      codigo_func: dados[i][idxCodFunc],
+      nome_func: mapaNomes[cod] || dados[i][idxCodFunc],
+      data_alerta: formatarData(dados[i][idxData]),
+      descricao: dados[i][idxDesc]
+    });
+
+    if (alertas.length >= 100) break;
+  }
+
+  return { sucesso: true, dados: alertas };
 }
 
 // Cadastrar nova tarefa
