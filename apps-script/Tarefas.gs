@@ -239,14 +239,19 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   var idxIdReg = headersCargas.indexOf('id_registro');
   var idxCodFunc = headersCargas.indexOf('codigo_func');
   var idxNumCarga = headersCargas.indexOf('numero_carga');
+  var idxAjudante = headersCargas.indexOf('ajudante');
 
   var registrosCarga = [];
+  var temAjudante = false;
   for (var i = 1; i < dadosCargas.length; i++) {
     if (dadosCargas[i][idxNumCarga] === numeroCarga) {
       registrosCarga.push({
         id_registro: dadosCargas[i][idxIdReg],
         codigo_func: dadosCargas[i][idxCodFunc]
       });
+      if (idxAjudante >= 0 && dadosCargas[i][idxAjudante] === true) {
+        temAjudante = true;
+      }
     }
   }
 
@@ -331,6 +336,27 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   var workers = workersFinalizados.length > 0 ? workersFinalizados : workersEmAndamento;
 
   if (workers.length === 0) return [];
+
+  // Se tem ajudante, adicionar worker virtual com tempo integral da carga
+  if (temAjudante) {
+    var menorInicio = Infinity;
+    var maiorFim = 0;
+    for (var a = 0; a < workers.length; a++) {
+      var iniMs = new Date(workers[a].data_inicio).getTime();
+      var fimMs = new Date(workers[a].data_fim).getTime();
+      if (iniMs < menorInicio) menorInicio = iniMs;
+      if (fimMs > maiorFim) maiorFim = fimMs;
+    }
+    var tempoAjudante = Math.max(maiorFim - menorInicio, 60000);
+    workers.push({
+      codigo_func: 'AJUDANTE',
+      nome_func: 'Ajudante',
+      tempo_ms: tempoAjudante,
+      status: workersFinalizados.length > 0 ? 'finalizada' : 'em_andamento',
+      data_inicio: new Date(menorInicio).toISOString(),
+      data_fim: new Date(maiorFim).toISOString()
+    });
+  }
 
   var tempoTotal = 0;
   for (var w = 0; w < workers.length; w++) {

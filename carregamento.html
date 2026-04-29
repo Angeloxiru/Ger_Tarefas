@@ -65,10 +65,16 @@
       </button>
 
       <div class="mt-12">
-        <p class="text-center mb-8" style="font-size:0.85rem;color:#666;">Ou insira manualmente (CARGA|VOLUMES):</p>
         <div class="form-group">
           <label>Dados da carga</label>
-          <input type="text" id="input-carga" class="input-text" placeholder="Ex: C350|410" onkeydown="if(event.key==='Enter')registrarManual()">
+          <input type="text" id="input-carga" class="input-text" placeholder="" onkeydown="if(event.key==='Enter')registrarManual()">
+        </div>
+        <div class="ajudante-row mt-8" style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:0.95rem;font-weight:600;color:#555;">Ajudante?</span>
+          <label class="switch">
+            <input type="checkbox" id="check-ajudante">
+            <span class="switch-slider"></span>
+          </label>
         </div>
         <button class="btn btn-primary mt-8" onclick="registrarManual()">
           Registrar Carga
@@ -261,7 +267,8 @@
         return;
       }
 
-      await registrarCarga(dados.numero_carga, dados.qtd_volumes);
+      const ajudante = document.getElementById('check-ajudante').checked;
+      await registrarCarga(dados.numero_carga, dados.qtd_volumes, ajudante);
     }
 
     async function registrarManual() {
@@ -279,11 +286,12 @@
         return;
       }
 
-      await registrarCarga(dados.numero_carga, dados.qtd_volumes);
+      const ajudante = document.getElementById('check-ajudante').checked;
+      await registrarCarga(dados.numero_carga, dados.qtd_volumes, ajudante);
     }
 
     // Registrar carga no sistema
-    async function registrarCarga(numeroCarga, qtdVolumes) {
+    async function registrarCarga(numeroCarga, qtdVolumes, ajudante) {
       mostrarLoading(true);
 
       // Primeiro, iniciar a tarefa
@@ -306,7 +314,8 @@
         registroAtual.id_registro,
         numeroCarga,
         qtdVolumes,
-        docaAtual ? docaAtual.codigo : ''
+        docaAtual ? docaAtual.codigo : '',
+        ajudante
       );
 
       mostrarLoading(false);

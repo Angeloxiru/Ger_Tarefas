@@ -4,14 +4,15 @@
 const Carregamento = {
   intervaloWorkers: null,
 
-  async registrarCarga(codigoFunc, idRegistro, numeroCarga, qtdVolumes, doca) {
+  async registrarCarga(codigoFunc, idRegistro, numeroCarga, qtdVolumes, doca, ajudante) {
     return await API.get({
       acao: 'registrar_carga',
       codigo_func: codigoFunc,
       id_registro: idRegistro,
       numero_carga: numeroCarga,
       qtd_volumes: qtdVolumes,
-      doca: doca || ''
+      doca: doca || '',
+      ajudante: ajudante ? 'true' : 'false'
     });
   },
 
@@ -22,12 +23,11 @@ const Carregamento = {
     });
   },
 
-  calcularDistribuicao(workers, totalVolumes) {
+  calcularDistribuicao(workers, totalVolumes, temAjudante) {
     if (!workers || workers.length === 0) return [];
 
     const agora = Date.now();
 
-    // Agrupar por funcionario unico, somando tempos de multiplos registros
     const mapaWorkers = {};
     workers.forEach(w => {
       if (w.status === 'timeout') return;
@@ -56,6 +56,26 @@ const Carregamento = {
 
     if (paraCalculo.length === 0) return [];
 
+    // Se tem ajudante, adicionar worker virtual com tempo integral da carga
+    if (temAjudante) {
+      let menorInicio = Infinity;
+      let maiorFim = 0;
+      workers.forEach(w => {
+        if (w.status === 'timeout') return;
+        const ini = new Date(w.data_inicio).getTime();
+        const fi = w.status === 'finalizada' ? new Date(w.data_fim).getTime() : agora;
+        if (ini < menorInicio) menorInicio = ini;
+        if (fi > maiorFim) maiorFim = fi;
+      });
+      const tempoAjudante = Math.max(maiorFim - menorInicio, 60000);
+      paraCalculo.push({
+        codigo_func: 'AJUDANTE',
+        nome_func: 'Ajudante',
+        tempo_ms: tempoAjudante,
+        status: finalizados.length > 0 ? 'finalizada' : 'em_andamento'
+      });
+    }
+
     const tempoTotal = paraCalculo.reduce((acc, w) => acc + w.tempo_ms, 0);
 
     let volumesDistribuidos = 0;
@@ -79,25 +99,26 @@ const Carregamento = {
     });
   },
 
-  renderizarWorkers(containerId, workers, totalVolumes) {
+  renderizarWorkers(containerId, workers, totalVolumes, temAjudante) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
     if (!workers || workers.length <= 1) {
-      // Verificar se o unico worker nao e timeout
-      if (!workers || workers.length === 0 || workers[0].status === 'timeout') {
+      if (!temAjudante) {
+        if (!workers || workers.length === 0 || workers[0].status === 'timeout') {
+          container.innerHTML = '';
+          container.classList.add('hidden');
+          return;
+        }
         container.innerHTML = '';
         container.classList.add('hidden');
         return;
       }
-      container.innerHTML = '';
-      container.classList.add('hidden');
-      return;
     }
 
     container.classList.remove('hidden');
 
-    const distribuicao = this.calcularDistribuicao(workers, totalVolumes);
+    const distribuicao = this.calcularDistribuicao(workers, totalVolumes, temAjudante);
     const cores = ['#1a73e8', '#0d9f6e', '#f59e0b', '#8b5cf6', '#ec4899'];
 
     // Barra mostra apenas os validos (distribuicao)
@@ -136,11 +157,12 @@ const Carregamento = {
       `;
     });
 
-    const totalWorkers = workers.length;
-    const excluidos = workers.filter(w => w.status === 'timeout').length;
+    const totalWorkers = workers ? workers.length : 0;
+    const excluidos = workers ? workers.filter(w => w.status === 'timeout').length : 0;
+    const numParticipantes = distribuicao.length;
     const titulo = excluidos > 0
-      ? `Distribuição (${totalWorkers - excluidos} válidos, ${excluidos} excluído por timeout)`
-      : `Distribuição de Volumes (${totalWorkers} trabalhadores)`;
+      ? `Distribuição (${totalWorkers - excluidos} válidos${temAjudante ? ' + ajudante' : ''}, ${excluidos} excluído por timeout)`
+      : `Distribuição de Volumes (${numParticipantes} participantes${temAjudante ? ', incl. ajudante' : ''})`;
 
     container.innerHTML = `
       <div class="volume-distribution">
@@ -157,7 +179,7 @@ const Carregamento = {
     const atualizar = async () => {
       const resultado = await this.buscarWorkersCarga(numeroCarga);
       if (resultado.sucesso && resultado.dados) {
-        this.renderizarWorkers(containerId, resultado.dados.workers, totalVolumes);
+        this.renderizarWorkers(containerId, resultado.dados.workers, totalVolumes, resultado.dados.tem_ajudante);
       }
     };
 
