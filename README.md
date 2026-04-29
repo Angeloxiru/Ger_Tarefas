@@ -83,6 +83,7 @@ Ger_Tarefas/
 | qtd_volumes | numero | 410 | Quantidade de volumes |
 | doca | texto | D01 | Codigo da doca (escaneado antes da carga) |
 | data_leitura | datetime | 2024-01-15 14:30:25 | Quando o QRcode foi lido |
+| ajudante | booleano | TRUE | Se ha ajudante nesta carga (maximo 1 por carga) |
 
 ### Docas
 | Coluna | Tipo | Exemplo | Descricao |
@@ -124,8 +125,8 @@ Todos via parametro `acao` no GET. POST tambem suportado, com fallback JSONP par
 | `status_funcionario` | Retorna tarefa em andamento (se houver) |
 | `iniciar_tarefa` | Inicia uma tarefa |
 | `finalizar_tarefa` | Finaliza tarefa e calcula distribuicao de volumes |
-| `registrar_carga` | Registra leitura do QRcode de carga + doca |
-| `workers_carga` | Workers da mesma carga (monitoramento tempo real) |
+| `registrar_carga` | Registra leitura do QRcode de carga + doca + ajudante |
+| `workers_carga` | Workers da mesma carga + flag ajudante (monitoramento tempo real) |
 | `distribuicao_carga` | Distribuicao calculada de volumes |
 | `painel_gestor` | Visao geral de todos os funcionarios |
 | `historico` | Registros filtrados por data e funcionario |
@@ -151,14 +152,17 @@ Comunicacao: `api.js` tenta `fetch()` primeiro; se falhar por CORS, usa JSONP (i
 3. Se nao tem senha cadastrada, loga direto
 4. Sessao salva no `sessionStorage`
 
+### Painel de tarefas (funcionario e gestor)
+O painel destaca as tarefas de carregamento (com botao grande e destaque) separadas das demais tarefas, que ficam agrupadas sob o botao "Outras Tarefas". Se o funcionario tem alertas, um botao "Meus Alertas" aparece para expandir a lista.
+
 ### Tarefa comum (Limpeza, Conferencia, Avarias)
-1. Seleciona tarefa no painel -> clica "Iniciar"
+1. Seleciona tarefa em "Outras Tarefas" -> clica para iniciar
 2. Cronometro inicia, tela mostra tarefa ativa
 3. Clica "Finalizar" -> registra data_fim, volta ao painel
 
 ### Tarefa de carregamento (4 etapas)
 1. **Doca**: Escaneia QRcode da doca (ou digita). Sistema valida na aba Docas e mostra o nome
-2. **Carga**: Escaneia QRcode da carga (formato: `NUMERO|VOLUMES`, ex: `C350|410`)
+2. **Carga**: Escaneia QRcode da carga (formato: `NUMERO|VOLUMES`, ex: `C350|410`). Toggle "Ajudante?" disponivel (desativado por padrao)
 3. **Andamento**: Cronometro + info da doca/carga + distribuicao de volumes em tempo real
 4. **Resultado**: Resumo final com distribuicao proporcional
 
@@ -169,6 +173,14 @@ Quando mais de um funcionario trabalha na mesma carga:
 - Se o mesmo funcionario tem multiplos registros na mesma carga, seus tempos sao **somados** (agrupamento por worker unico)
 - Monitoramento em tempo real a cada 15 segundos
 - Ultimo worker recebe o restante (evita erro de arredondamento)
+
+### Ajudante
+Em algumas cargas, um ajudante auxiliar pode participar do carregamento:
+- Na etapa de scan da carga, o funcionario pode ativar o toggle **"Ajudante?"**
+- Maximo **1 ajudante por carga**, independente de quantos funcionarios marquem a opcao
+- O ajudante e um participante virtual na distribuicao de volumes, com **tempo integral da carga** (do inicio mais cedo ao fim mais tarde entre todos os workers)
+- O ajudante aparece na distribuicao como "Ajudante" e recebe sua parcela proporcional de volumes
+- A flag e gravada na coluna `ajudante` da aba Cargas
 
 ---
 
@@ -187,8 +199,8 @@ O coletor Zebra MC22 envia automaticamente a tecla **Enter** apos cada leitura d
 
 Gestores podem registrar alertas para funcionarios (advertencias, observacoes, etc):
 
-- **Gestor** (aba "Alertas"): escaneia o cracha do funcionario, escreve a descricao e registra. Visualiza lista de todos os alertas recentes
-- **Funcionario** (painel): ao fazer login, ve a secao "Meus Alertas" com todos os alertas recebidos, ordenados do mais recente
+- **Gestor** (aba "Alertas"): escaneia o cracha do funcionario, sistema exibe o **nome** do funcionario, escreve a descricao e registra. Visualiza lista de todos os alertas recentes
+- **Funcionario** (painel): botao "Meus Alertas" aparece quando ha alertas. Ao clicar, expande a lista com todos os alertas recebidos, ordenados do mais recente
 
 ---
 
@@ -209,9 +221,9 @@ Workers com timeout sao excluidos da distribuicao de volumes — apenas quem fin
 ## Painel do gestor (5 abas)
 
 1. **Tempo Real**: Lista de funcionarios com status (ocioso/em andamento/alerta/timeout), filtros por tarefa e status, mostra doca e carga quando aplicavel
-2. **Tarefas**: Mesmo painel do funcionario — gestores tambem executam tarefas
+2. **Tarefas**: Mesmo painel do funcionario (Carregamento em destaque + Outras Tarefas) — gestores tambem executam tarefas
 3. **Historico**: Filtro por data + Todos/Individual (scan QRcode do funcionario). Tabela com nome do funcionario, tarefa, doca, carga, volumes proporcionais e status. Usa cache de distribuicao por carga para evitar timeout
-4. **Alertas**: Registrar alertas para funcionarios (scan do cracha + descricao) e visualizar alertas recentes
+4. **Alertas**: Registrar alertas para funcionarios (scan do cracha + exibe nome do funcionario + descricao) e visualizar alertas recentes
 5. **Cadastro**: Cadastro de funcionarios (com senha) e tarefas
 
 ---
