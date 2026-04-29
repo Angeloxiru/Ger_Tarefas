@@ -31,7 +31,7 @@ function Tarefas_listar() {
 // Verificar status do funcionario (tarefa em andamento)
 function Tarefas_statusFuncionario(codigoFunc) {
   if (!codigoFunc) {
-    return { sucesso: false, mensagem: 'Codigo do funcionario nao informado.' };
+    return { sucesso: false, mensagem: 'Código do funcionário não informado.' };
   }
 
   codigoFunc = codigoFunc.trim().toUpperCase();
@@ -92,7 +92,7 @@ function Tarefas_iniciar(codigoFunc, idTarefa) {
   // Verificar se ja tem tarefa em andamento
   var statusAtual = Tarefas_statusFuncionario(codigoFunc);
   if (statusAtual.sucesso && statusAtual.dados.tarefa_ativa) {
-    return { sucesso: false, mensagem: 'Voce ja tem uma tarefa em andamento. Finalize-a primeiro.' };
+    return { sucesso: false, mensagem: 'Você já tem uma tarefa em andamento. Finalize-a primeiro.' };
   }
 
   // Buscar nome da tarefa
@@ -111,7 +111,7 @@ function Tarefas_iniciar(codigoFunc, idTarefa) {
   }
 
   if (!nomeTarefa) {
-    return { sucesso: false, mensagem: 'Tarefa nao encontrada.' };
+    return { sucesso: false, mensagem: 'Tarefa não encontrada.' };
   }
 
   // Criar registro
@@ -166,7 +166,7 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
         String(dados[i][idxCodFunc]).trim().toUpperCase() === codigoFunc) {
 
       if (dados[i][idxStatus] !== 'em_andamento') {
-        return { sucesso: false, mensagem: 'Esta tarefa ja foi finalizada.' };
+        return { sucesso: false, mensagem: 'Esta tarefa já foi finalizada.' };
       }
 
       var agora = new Date();
@@ -197,7 +197,7 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
     }
   }
 
-  return { sucesso: false, mensagem: 'Registro nao encontrado.' };
+  return { sucesso: false, mensagem: 'Registro não encontrado.' };
 }
 
 // Buscar carga associada a um registro

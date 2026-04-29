@@ -3,7 +3,7 @@
 // Verifica se o cracha existe e se exige senha
 function Auth_verificarCracha(codigo) {
   if (!codigo) {
-    return { sucesso: false, mensagem: 'Codigo do cracha nao informado.' };
+    return { sucesso: false, mensagem: 'Código do crachá não informado.' };
   }
 
   codigo = codigo.trim().toUpperCase();
@@ -21,7 +21,7 @@ function Auth_verificarCracha(codigo) {
     var row = dados[i];
     if (String(row[idxCodigo]).trim().toUpperCase() === codigo) {
       if (!row[idxAtivo]) {
-        return { sucesso: false, mensagem: 'Funcionario inativo. Procure o supervisor.' };
+        return { sucesso: false, mensagem: 'Funcionário inativo. Procure o supervisor.' };
       }
 
       var temSenha = idxSenha >= 0 && String(row[idxSenha]).trim() !== '';
@@ -36,12 +36,12 @@ function Auth_verificarCracha(codigo) {
     }
   }
 
-  return { sucesso: false, mensagem: 'Cracha nao encontrado. Verifique o codigo.' };
+  return { sucesso: false, mensagem: 'Crachá não encontrado. Verifique o código.' };
 }
 
 function Auth_login(codigo, senha) {
   if (!codigo) {
-    return { sucesso: false, mensagem: 'Codigo do cracha nao informado.' };
+    return { sucesso: false, mensagem: 'Código do crachá não informado.' };
   }
 
   codigo = codigo.trim().toUpperCase();
@@ -61,7 +61,7 @@ function Auth_login(codigo, senha) {
     var row = dados[i];
     if (String(row[idxCodigo]).trim().toUpperCase() === codigo) {
       if (!row[idxAtivo]) {
-        return { sucesso: false, mensagem: 'Funcionario inativo. Procure o supervisor.' };
+        return { sucesso: false, mensagem: 'Funcionário inativo. Procure o supervisor.' };
       }
 
       // Verificar senha somente se houver uma cadastrada
@@ -85,5 +85,5 @@ function Auth_login(codigo, senha) {
     }
   }
 
-  return { sucesso: false, mensagem: 'Cracha nao encontrado. Verifique o codigo.' };
+  return { sucesso: false, mensagem: 'Crachá não encontrado. Verifique o código.' };
 }

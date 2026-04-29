@@ -13,7 +13,7 @@ function Carregamento_registrar(dados) {
   // Verificar se este registro ja tem uma carga associada
   var existente = buscarCargaDoRegistro(dados.id_registro);
   if (existente) {
-    return { sucesso: false, mensagem: 'Este registro ja tem uma carga associada.' };
+    return { sucesso: false, mensagem: 'Este registro já tem uma carga associada.' };
   }
 
   // Registrar nova carga
@@ -39,7 +39,7 @@ function Carregamento_registrar(dados) {
       compartilhada: totalWorkers > 1
     },
     mensagem: totalWorkers > 1
-      ? 'Carga registrada. ' + totalWorkers + ' trabalhadores nesta carga. Volumes serao distribuidos proporcionalmente.'
+      ? 'Carga registrada. ' + totalWorkers + ' trabalhadores nesta carga. Volumes serão distribuídos proporcionalmente.'
       : 'Carga registrada com sucesso.'
   };
 }
@@ -70,7 +70,7 @@ function buscarWorkersDaCarga(numeroCarga) {
 // Endpoint: buscar workers de uma carga (para monitoramento em tempo real)
 function Carregamento_workersCarga(numeroCarga) {
   if (!numeroCarga) {
-    return { sucesso: false, mensagem: 'Numero da carga nao informado.' };
+    return { sucesso: false, mensagem: 'Número da carga não informado.' };
   }
 
   var registrosCarga = buscarWorkersDaCarga(numeroCarga);
@@ -169,7 +169,7 @@ function Carregamento_workersCarga(numeroCarga) {
 // Endpoint: buscar distribuicao calculada de uma carga (para gestor)
 function Carregamento_distribuicao(numeroCarga) {
   if (!numeroCarga) {
-    return { sucesso: false, mensagem: 'Numero da carga nao informado.' };
+    return { sucesso: false, mensagem: 'Número da carga não informado.' };
   }
 
   // Buscar total de volumes
@@ -188,7 +188,7 @@ function Carregamento_distribuicao(numeroCarga) {
   }
 
   if (totalVolumes === 0) {
-    return { sucesso: false, mensagem: 'Carga nao encontrada.' };
+    return { sucesso: false, mensagem: 'Carga não encontrada.' };
   }
 
   var distribuicao = calcularDistribuicaoVolumes(numeroCarga, totalVolumes);

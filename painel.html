@@ -46,7 +46,7 @@
 
         <!-- Alerta de timeout -->
         <div id="alerta-timeout" class="alerta-timeout">
-          Atencao: tarefa aberta ha mais de 3 horas. Deseja finalizar?
+          Atenção: tarefa aberta há mais de 3 horas. Deseja finalizar?
         </div>
 
         <!-- Cronometro -->
@@ -155,7 +155,7 @@
 
     function renderizarTarefas(tarefas) {
       if (!tarefas || tarefas.length === 0) {
-        document.getElementById('btn-carregamento').innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponivel.</p></div>';
+        document.getElementById('btn-carregamento').innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponível.</p></div>';
         mostrarSecao('tarefas');
         return;
       }

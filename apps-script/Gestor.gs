@@ -273,7 +273,7 @@ function Gestor_historico(params) {
 // Cadastrar novo funcionario
 function Gestor_cadastrarFuncionario(dados) {
   if (!dados.codigo || !dados.nome || !dados.cargo || !dados.senha) {
-    return { sucesso: false, mensagem: 'Preencha todos os campos obrigatorios, incluindo a senha.' };
+    return { sucesso: false, mensagem: 'Preencha todos os campos obrigatórios, incluindo a senha.' };
   }
 
   var codigo = dados.codigo.trim().toUpperCase();
@@ -286,7 +286,7 @@ function Gestor_cadastrarFuncionario(dados) {
 
   for (var i = 1; i < existentes.length; i++) {
     if (String(existentes[i][idxCodigo]).trim().toUpperCase() === codigo) {
-      return { sucesso: false, mensagem: 'Ja existe um funcionario com este codigo.' };
+      return { sucesso: false, mensagem: 'Já existe um funcionário com este código.' };
     }
   }
 
@@ -299,13 +299,13 @@ function Gestor_cadastrarFuncionario(dados) {
     dados.senha.trim()
   ]);
 
-  return { sucesso: true, mensagem: 'Funcionario cadastrado com sucesso.' };
+  return { sucesso: true, mensagem: 'Funcionário cadastrado com sucesso.' };
 }
 
 // Registrar alerta para um funcionario
 function Gestor_registrarAlerta(dados) {
   if (!dados.codigo_func || !dados.descricao) {
-    return { sucesso: false, mensagem: 'Informe o funcionario e a descricao do alerta.' };
+    return { sucesso: false, mensagem: 'Informe o funcionário e a descrição do alerta.' };
   }
 
   var codigoFunc = dados.codigo_func.trim().toUpperCase();
@@ -313,7 +313,7 @@ function Gestor_registrarAlerta(dados) {
   // Verificar se funcionario existe
   var mapaNomes = buscarMapaNomes();
   if (!mapaNomes[codigoFunc]) {
-    return { sucesso: false, mensagem: 'Funcionario nao encontrado: ' + codigoFunc };
+    return { sucesso: false, mensagem: 'Funcionário não encontrado: ' + codigoFunc };
   }
 
   var sheet = getSheet('Alertas');

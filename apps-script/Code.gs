@@ -80,7 +80,7 @@ function doGet(e) {
         break;
 
       default:
-        resultado = { sucesso: false, mensagem: 'Acao desconhecida: ' + acao };
+        resultado = { sucesso: false, mensagem: 'Ação desconhecida: ' + acao };
     }
   } catch (erro) {
     resultado = { sucesso: false, mensagem: 'Erro interno: ' + erro.message };
@@ -122,7 +122,7 @@ function doPost(e) {
         break;
 
       default:
-        resultado = { sucesso: false, mensagem: 'Acao POST desconhecida: ' + acao };
+        resultado = { sucesso: false, mensagem: 'Ação POST desconhecida: ' + acao };
     }
   } catch (erro) {
     resultado = { sucesso: false, mensagem: 'Erro interno: ' + erro.message };

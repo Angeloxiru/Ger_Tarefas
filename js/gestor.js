@@ -86,7 +86,7 @@ const Gestor = {
     if (!container) return;
 
     if (!funcionarios || funcionarios.length === 0) {
-      container.innerHTML = '<div class="card text-center"><p>Nenhum funcionario encontrado.</p></div>';
+      container.innerHTML = '<div class="card text-center"><p>Nenhum funcionário encontrado.</p></div>';
       return;
     }
 
@@ -154,7 +154,7 @@ const Gestor = {
             <tr>
               <th>Func.</th>
               <th>Tarefa</th>
-              <th>Inicio</th>
+              <th>Início</th>
               <th>Fim</th>
               <th>Status</th>
               <th>Doca</th>
