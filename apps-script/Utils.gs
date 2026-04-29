@@ -130,7 +130,7 @@ function inicializarPlanilha() {
   // Aba Cargas
   var sheetCargas = criarAbaSeNecessario(ss, 'Cargas');
   if (sheetCargas.getLastRow() === 0) {
-    sheetCargas.appendRow(['id_registro', 'codigo_func', 'numero_carga', 'qtd_volumes', 'doca', 'data_leitura']);
+    sheetCargas.appendRow(['id_registro', 'codigo_func', 'numero_carga', 'qtd_volumes', 'doca', 'data_leitura', 'ajudante']);
   }
 
   // Aba Config

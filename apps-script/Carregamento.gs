@@ -23,12 +23,13 @@ function Carregamento_registrar(dados) {
     dados.numero_carga,
     dados.qtd_volumes,
     dados.doca || '',
-    agora
+    agora,
+    dados.ajudante === 'true' || dados.ajudante === true
   ]);
 
   // Verificar se ha outros trabalhadores na mesma carga
-  var workers = buscarWorkersDaCarga(dados.numero_carga);
-  var totalWorkers = workers.length;
+  var resultWorkers = buscarWorkersDaCarga(dados.numero_carga);
+  var totalWorkers = resultWorkers.registros.length;
 
   return {
     sucesso: true,
@@ -53,18 +54,23 @@ function buscarWorkersDaCarga(numeroCarga) {
   var idxIdReg = headersCargas.indexOf('id_registro');
   var idxCodFunc = headersCargas.indexOf('codigo_func');
   var idxNumCarga = headersCargas.indexOf('numero_carga');
+  var idxAjudante = headersCargas.indexOf('ajudante');
 
   var registros = [];
+  var temAjudante = false;
   for (var i = 1; i < dadosCargas.length; i++) {
     if (dadosCargas[i][idxNumCarga] === numeroCarga) {
       registros.push({
         id_registro: dadosCargas[i][idxIdReg],
         codigo_func: dadosCargas[i][idxCodFunc]
       });
+      if (idxAjudante >= 0 && dadosCargas[i][idxAjudante] === true) {
+        temAjudante = true;
+      }
     }
   }
 
-  return registros;
+  return { registros: registros, tem_ajudante: temAjudante };
 }
 
 // Endpoint: buscar workers de uma carga (para monitoramento em tempo real)
@@ -73,10 +79,12 @@ function Carregamento_workersCarga(numeroCarga) {
     return { sucesso: false, mensagem: 'Número da carga não informado.' };
   }
 
-  var registrosCarga = buscarWorkersDaCarga(numeroCarga);
+  var resultBusca = buscarWorkersDaCarga(numeroCarga);
+  var registrosCarga = resultBusca.registros;
+  var temAjudante = resultBusca.tem_ajudante;
 
   if (registrosCarga.length === 0) {
-    return { sucesso: true, dados: { workers: [], total: 0 } };
+    return { sucesso: true, dados: { workers: [], total: 0, tem_ajudante: false } };
   }
 
   // Buscar dados completos dos registros
@@ -161,7 +169,8 @@ function Carregamento_workersCarga(numeroCarga) {
     dados: {
       workers: workers,
       total: workers.length,
-      qtd_volumes: totalVolumes
+      qtd_volumes: totalVolumes,
+      tem_ajudante: temAjudante
     }
   };
 }

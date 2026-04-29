@@ -722,6 +722,53 @@ body {
   text-align: center;
 }
 
+/* Toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #ccc;
+  border-radius: 28px;
+  transition: background 0.3s;
+}
+
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+
+.switch input:checked + .switch-slider {
+  background: #0d9f6e;
+}
+
+.switch input:checked + .switch-slider::before {
+  transform: translateX(22px);
+}
+
 /* Logout */
 .btn-logout {
   background: transparent;
