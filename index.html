@@ -9,7 +9,7 @@
 <body>
   <div class="login-container">
     <div class="logo">Sistema de Atividades</div>
-    <p class="subtitle">Escaneie seu cracha para entrar</p>
+    <p class="subtitle">Escaneie seu crachá para entrar</p>
 
     <!-- Etapa 1: Identificacao -->
     <div id="etapa-codigo">
@@ -18,14 +18,14 @@
       </div>
 
       <button id="btn-scan" class="btn btn-primary btn-lg" onclick="iniciarScan()">
-        Escanear Cracha
+        Escanear Crachá
       </button>
 
       <div class="input-group mt-16">
-        <input type="text" id="codigo-manual" class="input-text" placeholder="Codigo do cracha"
+        <input type="text" id="codigo-manual" class="input-text" placeholder="Código do crachá"
           maxlength="10" autocomplete="off">
         <button class="btn btn-primary" onclick="verificarCracha()" style="width:auto;padding:12px 20px;">
-          Proximo
+          Próximo
         </button>
       </div>
     </div>
@@ -78,23 +78,23 @@
       if (scanAtivo) {
         await Scanner.parar();
         scanAtivo = false;
-        document.getElementById('btn-scan').textContent = 'Escanear Cracha';
+        document.getElementById('btn-scan').textContent = 'Escanear Crachá';
         return;
       }
 
-      mostrarMsg('Posicione o QRcode na camera...', 'info');
+      mostrarMsg('Posicione o QRcode na câmera...', 'info');
 
       const sucesso = await Scanner.iniciar('reader', async (codigo) => {
         scanAtivo = false;
-        document.getElementById('btn-scan').textContent = 'Escanear Cracha';
+        document.getElementById('btn-scan').textContent = 'Escanear Crachá';
         await verificarCrachaCodigo(codigo.trim().toUpperCase());
       });
 
       if (sucesso) {
         scanAtivo = true;
-        document.getElementById('btn-scan').textContent = 'Parar Camera';
+        document.getElementById('btn-scan').textContent = 'Parar Câmera';
       } else {
-        mostrarMsg('Nao foi possivel acessar a camera. Use o campo manual.', 'error');
+        mostrarMsg('Não foi possível acessar a câmera. Use o campo manual.', 'error');
       }
     }
 
@@ -102,7 +102,7 @@
     async function verificarCracha() {
       const codigo = document.getElementById('codigo-manual').value.trim();
       if (!codigo) {
-        mostrarMsg('Digite o codigo do cracha.', 'warning');
+        mostrarMsg('Digite o código do crachá.', 'warning');
         return;
       }
       await verificarCrachaCodigo(codigo.toUpperCase());

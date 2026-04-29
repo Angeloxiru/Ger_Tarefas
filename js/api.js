@@ -24,7 +24,7 @@ const API = {
       return await resposta.json();
     } catch (erro) {
       if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado. Verifique sua rede.' };
+        return { sucesso: false, mensagem: 'Tempo de conexão esgotado. Verifique sua rede.' };
       }
       // Tentar via JSONP como fallback (CORS bloqueado)
       return await this.getFallback(url);
@@ -49,7 +49,7 @@ const API = {
       return await resposta.json();
     } catch (erro) {
       if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexao esgotado. Verifique sua rede.' };
+        return { sucesso: false, mensagem: 'Tempo de conexão esgotado. Verifique sua rede.' };
       }
       // Tentar POST via GET como fallback (CORS bloqueado)
       return await this.postFallback(dados);
@@ -64,7 +64,7 @@ const API = {
       const timeout = setTimeout(() => {
         delete window[callbackName];
         if (script.parentNode) script.parentNode.removeChild(script);
-        resolve({ sucesso: false, mensagem: 'Tempo de conexao esgotado. Verifique sua rede.' });
+        resolve({ sucesso: false, mensagem: 'Tempo de conexão esgotado. Verifique sua rede.' });
       }, CONFIG.REQUEST_TIMEOUT);
 
       window[callbackName] = function(dados) {
@@ -81,7 +81,7 @@ const API = {
         clearTimeout(timeout);
         delete window[callbackName];
         if (script.parentNode) script.parentNode.removeChild(script);
-        resolve({ sucesso: false, mensagem: 'Erro de conexao. Verifique sua rede WiFi.' });
+        resolve({ sucesso: false, mensagem: 'Erro de conexão. Verifique sua rede WiFi.' });
       };
       document.body.appendChild(script);
     });

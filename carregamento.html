@@ -88,7 +88,7 @@
 
         <!-- Alerta de timeout -->
         <div id="alerta-timeout" class="alerta-timeout">
-          Atencao: tarefa aberta ha mais de 3 horas. Deseja finalizar?
+          Atenção: tarefa aberta há mais de 3 horas. Deseja finalizar?
         </div>
 
         <!-- Cronometro -->
@@ -112,9 +112,9 @@
 
         <!-- Aviso de carga compartilhada -->
         <div id="aviso-compartilhada" class="carga-workers hidden">
-          <div class="workers-title">Esta carga esta sendo trabalhada por mais funcionarios</div>
+          <div class="workers-title">Esta carga está sendo trabalhada por mais funcionários</div>
           <p style="font-size:0.8rem;color:#666;">
-            Os volumes serao distribuidos proporcionalmente ao tempo de execucao de cada trabalhador.
+            Os volumes serão distribuídos proporcionalmente ao tempo de execução de cada trabalhador.
           </p>
         </div>
 
@@ -189,7 +189,7 @@
         return;
       }
 
-      mostrarMsg('Posicione o QRcode da doca na camera...', 'info');
+      mostrarMsg('Posicione o QRcode da doca na câmera...', 'info');
 
       const sucesso = await Scanner.iniciar('reader-doca', async (texto) => {
         scanDocaAtivo = false;
@@ -200,9 +200,9 @@
 
       if (sucesso) {
         scanDocaAtivo = true;
-        document.getElementById('btn-scan-doca').textContent = 'Parar Camera';
+        document.getElementById('btn-scan-doca').textContent = 'Parar Câmera';
       } else {
-        mostrarMsg('Nao foi possivel acessar a camera. Insira manualmente.', 'error');
+        mostrarMsg('Não foi possível acessar a câmera. Insira manualmente.', 'error');
       }
     }
 
@@ -219,7 +219,7 @@
       mostrarLoading(false);
 
       if (!resultado.sucesso) {
-        mostrarMsg(resultado.mensagem || 'Doca nao encontrada.', 'error');
+        mostrarMsg(resultado.mensagem || 'Doca não encontrada.', 'error');
         return;
       }
 
@@ -236,7 +236,7 @@
         return;
       }
 
-      mostrarMsg('Posicione o QRcode da carga na camera...', 'info');
+      mostrarMsg('Posicione o QRcode da carga na câmera...', 'info');
 
       const sucesso = await Scanner.iniciar('reader', async (texto) => {
         scanAtivo = false;
@@ -246,9 +246,9 @@
 
       if (sucesso) {
         scanAtivo = true;
-        document.getElementById('btn-scan-carga').textContent = 'Parar Camera';
+        document.getElementById('btn-scan-carga').textContent = 'Parar Câmera';
       } else {
-        mostrarMsg('Nao foi possivel acessar a camera. Use os campos manuais.', 'error');
+        mostrarMsg('Não foi possível acessar a câmera. Use os campos manuais.', 'error');
       }
     }
 
@@ -257,7 +257,7 @@
       const dados = Scanner.parsearCarga(texto);
 
       if (!dados) {
-        mostrarMsg('QRcode invalido. Formato esperado: NUMERO_CARGA|QTD_VOLUMES', 'error');
+        mostrarMsg('QRcode inválido. Formato esperado: NUMERO_CARGA|QTD_VOLUMES', 'error');
         return;
       }
 
@@ -275,7 +275,7 @@
       const dados = Scanner.parsearCarga(texto);
 
       if (!dados) {
-        mostrarMsg('Formato invalido. Use CARGA|VOLUMES (ex: C350|410).', 'error');
+        mostrarMsg('Formato inválido. Use CARGA|VOLUMES (ex: C350|410).', 'error');
         return;
       }
 
@@ -414,7 +414,7 @@
       } else {
         document.getElementById('resultado-distribuicao').innerHTML = `
           <div class="msg msg-success">
-            Todos os ${dadosCarga.qtd_volumes} volumes atribuidos a voce.
+            Todos os ${dadosCarga.qtd_volumes} volumes atribuídos a você.
           </div>
         `;
       }

@@ -131,7 +131,7 @@ const Carregamento = {
             <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:6px;"></span>
             ${w.nome_func || w.codigo_func} (timeout)
           </span>
-          <span class="legend-value" style="color:#ef4444;">excluido</span>
+          <span class="legend-value" style="color:#ef4444;">excluído</span>
         </div>
       `;
     });
@@ -139,8 +139,8 @@ const Carregamento = {
     const totalWorkers = workers.length;
     const excluidos = workers.filter(w => w.status === 'timeout').length;
     const titulo = excluidos > 0
-      ? `Distribuicao (${totalWorkers - excluidos} validos, ${excluidos} excluido por timeout)`
-      : `Distribuicao de Volumes (${totalWorkers} trabalhadores)`;
+      ? `Distribuição (${totalWorkers - excluidos} válidos, ${excluidos} excluído por timeout)`
+      : `Distribuição de Volumes (${totalWorkers} trabalhadores)`;
 
     container.innerHTML = `
       <div class="volume-distribution">

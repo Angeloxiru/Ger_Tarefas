@@ -82,12 +82,12 @@ function buscarMapaNomes() {
 // Verificar doca - endpoint
 function verificarDoca(codigo) {
   if (!codigo) {
-    return { sucesso: false, mensagem: 'Codigo da doca nao informado.' };
+    return { sucesso: false, mensagem: 'Código da doca não informado.' };
   }
 
   var nome = buscarNomeDoca(codigo);
   if (!nome) {
-    return { sucesso: false, mensagem: 'Doca nao encontrada para o codigo: ' + codigo };
+    return { sucesso: false, mensagem: 'Doca não encontrada para o código: ' + codigo };
   }
 
   return { sucesso: true, dados: { codigo: codigo, nome: nome } };

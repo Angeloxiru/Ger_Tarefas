@@ -22,7 +22,7 @@
     <div class="tabs">
       <button class="tab ativo" data-tab="tempo-real" onclick="trocarTab('tempo-real')">Tempo Real</button>
       <button class="tab" data-tab="tarefas" onclick="trocarTab('tarefas')">Tarefas</button>
-      <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Historico</button>
+      <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Histórico</button>
       <button class="tab" data-tab="alertas" onclick="trocarTab('alertas')">Alertas</button>
       <button class="tab" data-tab="cadastro" onclick="trocarTab('cadastro')">Cadastro</button>
     </div>
@@ -92,7 +92,7 @@
           <div id="gestor-tarefa-nome" class="task-title"></div>
 
           <div id="gestor-alerta-timeout" class="alerta-timeout">
-            Atencao: tarefa aberta ha mais de 3 horas. Deseja finalizar?
+            Atenção: tarefa aberta há mais de 3 horas. Deseja finalizar?
           </div>
 
           <div id="gestor-cronometro" class="cronometro verde">00:00:00</div>
@@ -121,7 +121,7 @@
     <div id="tab-historico" class="tab-content">
       <div class="card">
         <div class="form-group">
-          <label>Data inicio</label>
+          <label>Data início</label>
           <input type="date" id="hist-data-inicio">
         </div>
         <div class="form-group">
@@ -129,7 +129,7 @@
           <input type="date" id="hist-data-fim">
         </div>
         <div class="form-group">
-          <label>Funcionario</label>
+          <label>Funcionário</label>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
             <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;cursor:pointer;white-space:nowrap;">
               <input type="radio" name="hist-filtro-tipo" value="todos" checked onchange="toggleFiltroFunc()">
@@ -142,7 +142,7 @@
           </div>
           <div id="filtro-func-individual" class="hidden">
             <div class="input-group">
-              <input type="text" id="hist-func-codigo" class="input-text" placeholder="Codigo do cracha" readonly>
+              <input type="text" id="hist-func-codigo" class="input-text" placeholder="Código do crachá" readonly>
               <button class="btn btn-primary" onclick="scanFuncionarioHistorico()" style="width:auto;padding:12px 16px;">
                 Escanear
               </button>
@@ -161,9 +161,9 @@
       <div class="card">
         <h3 class="card-title mb-12">Registrar Alerta</h3>
         <div class="form-group">
-          <label>Funcionario</label>
+          <label>Funcionário</label>
           <div class="input-group">
-            <input type="text" id="alerta-func-codigo" class="input-text" placeholder="Codigo do cracha" onkeydown="if(event.key==='Enter'){event.preventDefault();selecionarFuncionarioAlerta(this.value.trim().toUpperCase());document.getElementById('alerta-descricao').focus();}">
+            <input type="text" id="alerta-func-codigo" class="input-text" placeholder="Código do crachá" onkeydown="if(event.key==='Enter'){event.preventDefault();selecionarFuncionarioAlerta(this.value.trim().toUpperCase());document.getElementById('alerta-descricao').focus();}">
             <button class="btn btn-primary" onclick="scanFuncionarioAlerta()" style="width:auto;padding:12px 16px;">
               Escanear
             </button>
@@ -171,7 +171,7 @@
           <div id="alerta-func-nome" style="font-size:0.85rem;color:#1a73e8;margin-top:4px;min-height:20px;"></div>
         </div>
         <div class="form-group">
-          <label>Descricao do alerta</label>
+          <label>Descrição do alerta</label>
           <textarea id="alerta-descricao" class="input-text" rows="3" placeholder="Descreva o alerta..." style="resize:vertical;"></textarea>
         </div>
         <button class="btn btn-danger" onclick="registrarAlerta()">Registrar Alerta</button>
@@ -184,10 +184,10 @@
     <!-- Modal scan funcionario alerta -->
     <div id="modal-scan-alerta" class="modal-overlay">
       <div class="modal">
-        <div class="modal-title">Escanear Cracha</div>
+        <div class="modal-title">Escanear Crachá</div>
         <div id="reader-alerta" style="width:100%;max-width:280px;margin:0 auto;border-radius:10px;overflow:hidden;"></div>
         <div class="input-group mt-12">
-          <input type="text" id="scan-alerta-manual" class="input-text" placeholder="Ou digite o codigo" maxlength="10" onkeydown="if(event.key==='Enter')confirmarAlertaFuncManual()">
+          <input type="text" id="scan-alerta-manual" class="input-text" placeholder="Ou digite o código" maxlength="10" onkeydown="if(event.key==='Enter')confirmarAlertaFuncManual()">
           <button class="btn btn-primary" onclick="confirmarAlertaFuncManual()" style="width:auto;padding:12px 16px;">OK</button>
         </div>
         <button class="btn btn-secondary mt-12" onclick="fecharScanAlerta()">Cancelar</button>
@@ -197,9 +197,9 @@
     <!-- Tab: Cadastro -->
     <div id="tab-cadastro" class="tab-content">
       <div class="card">
-        <h3 class="card-title mb-12">Novo Funcionario</h3>
+        <h3 class="card-title mb-12">Novo Funcionário</h3>
         <div class="form-group">
-          <label>Codigo (cracha)</label>
+          <label>Código (crachá)</label>
           <input type="text" id="cad-func-codigo" placeholder="Ex: PL4" maxlength="10">
         </div>
         <div class="form-group">
@@ -213,7 +213,7 @@
         <div class="form-group">
           <label>Perfil</label>
           <select id="cad-func-perfil">
-            <option value="funcionario">Funcionario</option>
+            <option value="funcionario">Funcionário</option>
             <option value="gestor">Gestor</option>
           </select>
         </div>
@@ -221,7 +221,7 @@
           <label>Senha</label>
           <input type="text" id="cad-func-senha" placeholder="Senha do funcionario">
         </div>
-        <button class="btn btn-success" onclick="cadastrarFuncionario()">Cadastrar Funcionario</button>
+        <button class="btn btn-success" onclick="cadastrarFuncionario()">Cadastrar Funcionário</button>
       </div>
 
       <div class="card mt-12">
@@ -248,10 +248,10 @@
     <!-- Modal de scan funcionario (historico) -->
     <div id="modal-scan-func" class="modal-overlay">
       <div class="modal">
-        <div class="modal-title">Escanear Cracha</div>
+        <div class="modal-title">Escanear Crachá</div>
         <div id="reader-hist" style="width:100%;max-width:280px;margin:0 auto;border-radius:10px;overflow:hidden;"></div>
         <div class="input-group mt-12">
-          <input type="text" id="scan-func-manual" class="input-text" placeholder="Ou digite o codigo" maxlength="10" onkeydown="if(event.key==='Enter')confirmarFuncManual()">
+          <input type="text" id="scan-func-manual" class="input-text" placeholder="Ou digite o código" maxlength="10" onkeydown="if(event.key==='Enter')confirmarFuncManual()">
           <button class="btn btn-primary" onclick="confirmarFuncManual()" style="width:auto;padding:12px 16px;">OK</button>
         </div>
         <button class="btn btn-secondary mt-12" onclick="fecharScanFunc()">Cancelar</button>
@@ -370,7 +370,7 @@
       const tarefas = resultado.dados;
 
       if (!tarefas || tarefas.length === 0) {
-        document.getElementById('gestor-btn-carregamento').innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponivel.</p></div>';
+        document.getElementById('gestor-btn-carregamento').innerHTML = '<div class="card text-center"><p>Nenhuma tarefa disponível.</p></div>';
       } else {
         const carregamento = tarefas.filter(t => t.usa_qrcode_carga);
         const outras = tarefas.filter(t => !t.usa_qrcode_carga);
@@ -512,7 +512,7 @@
       });
 
       if (!sucesso) {
-        mostrarMsg('Camera indisponivel. Use o campo manual.', 'warning');
+        mostrarMsg('Câmera indisponível. Use o campo manual.', 'warning');
       } else {
         scanHistAtivo = true;
       }
@@ -521,7 +521,7 @@
     function confirmarFuncManual() {
       const codigo = document.getElementById('scan-func-manual').value.trim().toUpperCase();
       if (!codigo) {
-        mostrarMsg('Digite o codigo do cracha.', 'warning');
+        mostrarMsg('Digite o código do crachá.', 'warning');
         return;
       }
       selecionarFuncionarioHist(codigo);
@@ -534,9 +534,9 @@
 
       const resultado = await API.get({ acao: 'verificar_cracha', codigo: codigo });
       if (resultado.sucesso && resultado.dados) {
-        document.getElementById('hist-func-nome').textContent = resultado.dados.nome || ('Cracha: ' + codigo);
+        document.getElementById('hist-func-nome').textContent = resultado.dados.nome || ('Crachá: ' + codigo);
       } else {
-        document.getElementById('hist-func-nome').textContent = 'Cracha: ' + codigo;
+        document.getElementById('hist-func-nome').textContent = 'Crachá: ' + codigo;
       }
     }
 
@@ -553,7 +553,7 @@
       const dataFim = document.getElementById('hist-data-fim').value;
 
       if (!dataInicio || !dataFim) {
-        mostrarMsg('Selecione as datas de inicio e fim.', 'warning');
+        mostrarMsg('Selecione as datas de início e fim.', 'warning');
         return;
       }
 
@@ -563,7 +563,7 @@
       if (tipo === 'individual') {
         const codigo = document.getElementById('hist-func-codigo').value.trim();
         if (!codigo) {
-          mostrarMsg('Escaneie ou digite o cracha do funcionario.', 'warning');
+          mostrarMsg('Escaneie ou digite o crachá do funcionário.', 'warning');
           return;
         }
         funcionariosSelecionados = codigo;
@@ -592,7 +592,7 @@
       });
 
       if (!sucesso) {
-        mostrarMsg('Camera indisponivel. Use o campo manual.', 'warning');
+        mostrarMsg('Câmera indisponível. Use o campo manual.', 'warning');
       } else {
         scanAlertaAtivo = true;
       }
@@ -601,7 +601,7 @@
     function confirmarAlertaFuncManual() {
       const codigo = document.getElementById('scan-alerta-manual').value.trim().toUpperCase();
       if (!codigo) {
-        mostrarMsg('Digite o codigo do cracha.', 'warning');
+        mostrarMsg('Digite o código do crachá.', 'warning');
         return;
       }
       selecionarFuncionarioAlerta(codigo);
@@ -617,9 +617,9 @@
 
       const resultado = await API.get({ acao: 'verificar_cracha', codigo: codigo });
       if (resultado.sucesso && resultado.dados) {
-        nomeEl.textContent = resultado.dados.nome || ('Cracha: ' + codigo);
+        nomeEl.textContent = resultado.dados.nome || ('Crachá: ' + codigo);
       } else {
-        nomeEl.textContent = 'Cracha nao encontrado: ' + codigo;
+        nomeEl.textContent = 'Crachá não encontrado: ' + codigo;
         nomeEl.style.color = '#ef4444';
       }
     }
@@ -637,7 +637,7 @@
       const descricao = document.getElementById('alerta-descricao').value.trim();
 
       if (!codigoFunc || !descricao) {
-        mostrarMsg('Informe o funcionario e a descricao do alerta.', 'warning');
+        mostrarMsg('Informe o funcionário e a descrição do alerta.', 'warning');
         return;
       }
 
@@ -680,7 +680,7 @@
       const resultado = await Gestor.cadastrarFuncionario(dados);
 
       if (resultado.sucesso) {
-        mostrarMsg('Funcionario cadastrado com sucesso!', 'success');
+        mostrarMsg('Funcionário cadastrado com sucesso!', 'success');
         document.getElementById('cad-func-codigo').value = '';
         document.getElementById('cad-func-nome').value = '';
         document.getElementById('cad-func-cargo').value = '';
