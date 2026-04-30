@@ -1,9 +1,8 @@
 // Tarefas.gs - CRUD de tarefas e registros
 
-// Listar tarefas ativas
+// Listar tarefas ativas (cache de 10min)
 function Tarefas_listar() {
-  var sheet = getSheet('Tarefas');
-  var dados = sheet.getDataRange().getValues();
+  var dados = getSheetDataCached('Tarefas', 600);
   var headers = dados[0];
 
   var idxId = headers.indexOf('id_tarefa');
@@ -45,7 +44,6 @@ function Tarefas_statusFuncionario(codigoFunc) {
   var idxIdTarefa = headers.indexOf('id_tarefa');
   var idxNomeTarefa = headers.indexOf('nome_tarefa');
   var idxDataInicio = headers.indexOf('data_inicio');
-  var idxDataFim = headers.indexOf('data_fim');
   var idxStatus = headers.indexOf('status');
 
   // Procurar tarefa em andamento (de tras pra frente, mais recente primeiro)
@@ -62,7 +60,6 @@ function Tarefas_statusFuncionario(codigoFunc) {
         status: row[idxStatus]
       };
 
-      // Buscar dados de carga se existir
       var carga = buscarCargaDoRegistro(row[idxId]);
       if (carga) {
         registro.carga = carga;
@@ -95,17 +92,16 @@ function Tarefas_iniciar(codigoFunc, idTarefa) {
     return { sucesso: false, mensagem: 'Você já tem uma tarefa em andamento. Finalize-a primeiro.' };
   }
 
-  // Buscar nome da tarefa
-  var sheetTarefas = getSheet('Tarefas');
-  var tarefas = sheetTarefas.getDataRange().getValues();
-  var headersTarefas = tarefas[0];
+  // Buscar nome da tarefa via cache
+  var dadosTarefas = getSheetDataCached('Tarefas', 600);
+  var headersTarefas = dadosTarefas[0];
   var idxIdTarefa = headersTarefas.indexOf('id_tarefa');
   var idxNomeTarefa = headersTarefas.indexOf('nome');
 
   var nomeTarefa = '';
-  for (var i = 1; i < tarefas.length; i++) {
-    if (tarefas[i][idxIdTarefa] === idTarefa) {
-      nomeTarefa = tarefas[i][idxNomeTarefa];
+  for (var i = 1; i < dadosTarefas.length; i++) {
+    if (dadosTarefas[i][idxIdTarefa] === idTarefa) {
+      nomeTarefa = dadosTarefas[i][idxNomeTarefa];
       break;
     }
   }
@@ -114,7 +110,6 @@ function Tarefas_iniciar(codigoFunc, idTarefa) {
     return { sucesso: false, mensagem: 'Tarefa não encontrada.' };
   }
 
-  // Criar registro
   var agora = new Date();
   var idRegistro = 'R' + Utilities.formatDate(agora, Session.getScriptTimeZone(), 'yyyyMMddHHmmss') + codigoFunc;
 
@@ -125,9 +120,9 @@ function Tarefas_iniciar(codigoFunc, idTarefa) {
     idTarefa,
     nomeTarefa,
     agora,
-    '',          // data_fim vazio
+    '',
     'em_andamento',
-    ''           // finalizado_por vazio
+    ''
   ]);
 
   return {
@@ -171,7 +166,6 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 
       var agora = new Date();
 
-      // Atualizar registro (linha i+1 porque getDataRange inclui header)
       sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
       sheetReg.getRange(i + 1, idxStatus + 1).setValue('finalizada');
       sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('funcionario');
@@ -186,7 +180,6 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
         mensagem: 'Tarefa finalizada com sucesso.'
       };
 
-      // Se tinha carga, calcular distribuicao proporcional
       var carga = buscarCargaDoRegistro(idRegistro);
       if (carga) {
         var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
@@ -230,7 +223,6 @@ function buscarCargaDoRegistro(idRegistro) {
 }
 
 // Calcular distribuicao proporcional de volumes entre trabalhadores da mesma carga
-// Agrega por funcionario unico (se o mesmo func tem multiplos registros, soma os tempos)
 function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   var sheetCargas = getSheet('Cargas');
   var dadosCargas = sheetCargas.getDataRange().getValues();
@@ -266,20 +258,11 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
   var idxRegDataFim = headersReg.indexOf('data_fim');
   var idxRegStatus = headersReg.indexOf('status');
 
-  var sheetFunc = getSheet('Funcionarios');
-  var dadosFunc = sheetFunc.getDataRange().getValues();
-  var headersFunc = dadosFunc[0];
-  var idxFuncCodigo = headersFunc.indexOf('codigo');
-  var idxFuncNome = headersFunc.indexOf('nome');
-
-  var mapaNomes = {};
-  for (var f = 1; f < dadosFunc.length; f++) {
-    mapaNomes[String(dadosFunc[f][idxFuncCodigo]).trim().toUpperCase()] = dadosFunc[f][idxFuncNome];
-  }
+  // Usar cache para nomes de funcionarios
+  var mapaNomes = buscarMapaNomes();
 
   var agora = new Date();
 
-  // Agrupar por funcionario unico, somando tempos de multiplos registros
   var mapaWorkers = {};
 
   for (var j = 0; j < registrosCarga.length; j++) {
@@ -311,7 +294,6 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
 
         mapaWorkers[codFunc].tempo_ms += tempoMs;
 
-        // Se qualquer registro esta finalizado, o worker conta como finalizado
         if (status === 'finalizada') {
           mapaWorkers[codFunc].status = 'finalizada';
         }
@@ -321,7 +303,6 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
     }
   }
 
-  // Separar finalizados e em_andamento
   var workersFinalizados = [];
   var workersEmAndamento = [];
 
@@ -337,7 +318,6 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
 
   if (workers.length === 0) return [];
 
-  // Se tem ajudante, adicionar worker virtual com tempo integral da carga
   if (temAjudante) {
     var menorInicio = Infinity;
     var maiorFim = 0;

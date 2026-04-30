@@ -2,8 +2,8 @@
 
 // Painel em tempo real
 function Gestor_painel(params) {
-  var sheetFunc = getSheet('Funcionarios');
-  var dadosFunc = sheetFunc.getDataRange().getValues();
+  // Funcionarios via cache (mudam raramente)
+  var dadosFunc = getSheetDataCached('Funcionarios', 600);
   var headersFunc = dadosFunc[0];
 
   var idxCodigo = headersFunc.indexOf('codigo');
@@ -12,7 +12,7 @@ function Gestor_painel(params) {
   var idxAtivo = headersFunc.indexOf('ativo');
   var idxPerfil = headersFunc.indexOf('perfil');
 
-  // Buscar todos os registros em andamento
+  // Registros e Cargas sempre frescos (mudam constantemente)
   var sheetReg = getSheet('Registros');
   var dadosReg = sheetReg.getDataRange().getValues();
   var headersReg = dadosReg[0];
@@ -38,33 +38,27 @@ function Gestor_painel(params) {
     }
   }
 
-  // Buscar dados de cargas para registros ativos
   var sheetCargas = getSheet('Cargas');
   var dadosCargas = sheetCargas.getDataRange().getValues();
   var headersCargas = dadosCargas[0];
   var idxCargaIdReg = headersCargas.indexOf('id_registro');
   var idxCargaNumero = headersCargas.indexOf('numero_carga');
   var idxCargaVolumes = headersCargas.indexOf('qtd_volumes');
-
   var idxCargaDoca2 = headersCargas.indexOf('doca');
 
   var cargasPorRegistro = {};
+  var workersPorCarga = {};
   for (var c = 1; c < dadosCargas.length; c++) {
-    cargasPorRegistro[dadosCargas[c][idxCargaIdReg]] = {
-      numero_carga: dadosCargas[c][idxCargaNumero],
+    var idRegCarga = dadosCargas[c][idxCargaIdReg];
+    var numCarga = dadosCargas[c][idxCargaNumero];
+    cargasPorRegistro[idRegCarga] = {
+      numero_carga: numCarga,
       qtd_volumes: dadosCargas[c][idxCargaVolumes],
       doca: idxCargaDoca2 >= 0 ? dadosCargas[c][idxCargaDoca2] : ''
     };
-  }
-
-  // Contar workers por carga
-  var workersPorCarga = {};
-  for (var c2 = 1; c2 < dadosCargas.length; c2++) {
-    var numCarga = dadosCargas[c2][idxCargaNumero];
     workersPorCarga[numCarga] = (workersPorCarga[numCarga] || 0) + 1;
   }
 
-  // Montar lista de funcionarios
   var funcionarios = [];
   var totalAtivos = 0;
   var totalOciosos = 0;
@@ -73,7 +67,7 @@ function Gestor_painel(params) {
 
   for (var i = 1; i < dadosFunc.length; i++) {
     var row = dadosFunc[i];
-    if (!row[idxAtivo]) continue; // Ignorar inativos
+    if (!row[idxAtivo]) continue;
 
     var codigo = String(row[idxCodigo]).trim().toUpperCase();
     var func = {
@@ -88,7 +82,6 @@ function Gestor_painel(params) {
       var reg = registrosAtivos[codigo];
       func.tarefa_atual = reg;
 
-      // Verificar se tem carga
       if (cargasPorRegistro[reg.id_registro]) {
         var carga = cargasPorRegistro[reg.id_registro];
         func.tarefa_atual.carga = {
@@ -101,16 +94,14 @@ function Gestor_painel(params) {
 
       totalAtivos++;
 
-      // Verificar se esta em alerta
       var inicio = new Date(reg.data_inicio).getTime();
-      if ((agora - inicio) >= 10800000) { // 3 horas em ms
+      if ((agora - inicio) >= 10800000) {
         totalAlertas++;
       }
     } else {
       totalOciosos++;
     }
 
-    // Aplicar filtros
     if (params && params.filtro_status) {
       var filtroStatus = params.filtro_status;
       if (filtroStatus === 'ocioso' && func.tarefa_atual) continue;
@@ -130,7 +121,7 @@ function Gestor_painel(params) {
     funcionarios.push(func);
   }
 
-  // Buscar lista de tarefas para filtro
+  // Tarefas via cache
   var tarefas = Tarefas_listar().dados || [];
 
   var totalFunc = 0;
@@ -169,7 +160,6 @@ function Gestor_historico(params) {
   var dataInicio = params.data_inicio ? new Date(params.data_inicio) : null;
   var dataFim = params.data_fim ? new Date(params.data_fim + 'T23:59:59') : null;
 
-  // Filtro de funcionarios (lista separada por virgula)
   var filtroFuncionarios = null;
   if (params.funcionarios && params.funcionarios.trim() !== '') {
     filtroFuncionarios = params.funcionarios.split(',').map(function(f) {
@@ -177,14 +167,12 @@ function Gestor_historico(params) {
     });
   }
 
-  // Buscar cargas para enriquecer dados
   var sheetCargas = getSheet('Cargas');
   var dadosCargas = sheetCargas.getDataRange().getValues();
   var headersCargas = dadosCargas[0];
   var idxCargaIdReg = headersCargas.indexOf('id_registro');
   var idxCargaNumero = headersCargas.indexOf('numero_carga');
   var idxCargaVolumes = headersCargas.indexOf('qtd_volumes');
-
   var idxCargaDoca = headersCargas.indexOf('doca');
 
   var cargasPorRegistro = {};
@@ -196,9 +184,9 @@ function Gestor_historico(params) {
     };
   }
 
+  // Nomes via cache
   var mapaNomes = buscarMapaNomes();
 
-  // Cache de nomes de docas e distribuicoes para evitar chamadas repetidas
   var cacheDocas = {};
   var cacheDist = {};
 
@@ -238,7 +226,6 @@ function Gestor_historico(params) {
       registro.numero_carga = carga.numero_carga;
       registro.qtd_volumes = carga.qtd_volumes;
 
-      // Cache de nome da doca
       if (carga.doca) {
         if (cacheDocas[carga.doca] === undefined) {
           cacheDocas[carga.doca] = buscarNomeDoca(carga.doca);
@@ -246,7 +233,6 @@ function Gestor_historico(params) {
         registro.nome_doca = cacheDocas[carga.doca];
       }
 
-      // Cache de distribuicao por carga (evita recalcular para cada registro)
       if (registro.status === 'finalizada' || registro.status === 'timeout') {
         var chaveCache = carga.numero_carga + '|' + carga.qtd_volumes;
         if (cacheDist[chaveCache] === undefined) {
@@ -278,7 +264,6 @@ function Gestor_cadastrarFuncionario(dados) {
 
   var codigo = dados.codigo.trim().toUpperCase();
 
-  // Verificar se ja existe
   var sheet = getSheet('Funcionarios');
   var existentes = sheet.getDataRange().getValues();
   var headers = existentes[0];
@@ -294,10 +279,13 @@ function Gestor_cadastrarFuncionario(dados) {
     codigo,
     dados.nome.trim(),
     dados.cargo.trim(),
-    true, // ativo
+    true,
     dados.perfil || 'funcionario',
     dados.senha.trim()
   ]);
+
+  // Invalida cache para que o novo funcionario seja visivel imediatamente
+  invalidarCache('Funcionarios');
 
   return { sucesso: true, mensagem: 'Funcionário cadastrado com sucesso.' };
 }
@@ -310,7 +298,6 @@ function Gestor_registrarAlerta(dados) {
 
   var codigoFunc = dados.codigo_func.trim().toUpperCase();
 
-  // Verificar se funcionario existe
   var mapaNomes = buscarMapaNomes();
   if (!mapaNomes[codigoFunc]) {
     return { sucesso: false, mensagem: 'Funcionário não encontrado: ' + codigoFunc };
@@ -376,7 +363,6 @@ function Gestor_cadastrarTarefa(dados) {
   var sheet = getSheet('Tarefas');
   var existentes = sheet.getDataRange().getValues();
 
-  // Gerar ID da tarefa
   var ultimoId = 0;
   var headers = existentes[0];
   var idxId = headers.indexOf('id_tarefa');
@@ -394,8 +380,11 @@ function Gestor_cadastrarTarefa(dados) {
     dados.nome.trim(),
     dados.usa_qrcode_carga || false,
     dados.tempo_maximo_min || 240,
-    true // ativa
+    true
   ]);
+
+  // Invalida cache para que a nova tarefa seja visivel imediatamente
+  invalidarCache('Tarefas');
 
   return {
     sucesso: true,

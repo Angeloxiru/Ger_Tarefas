@@ -5,7 +5,27 @@ const Tarefas = {
   intervaloCarga: null,
 
   async listarTarefas() {
-    return await API.get({ acao: 'listar_tarefas' });
+    const chave = 'cache_tarefas';
+    try {
+      const cached = sessionStorage.getItem(chave);
+      if (cached) {
+        const { dados, expira } = JSON.parse(cached);
+        if (Date.now() < expira) return { sucesso: true, dados };
+      }
+    } catch (e) {}
+
+    const resp = await API.get({ acao: 'listar_tarefas' });
+
+    if (resp.sucesso && resp.dados) {
+      try {
+        sessionStorage.setItem(chave, JSON.stringify({
+          dados: resp.dados,
+          expira: Date.now() + 10 * 60 * 1000 // 10 minutos
+        }));
+      } catch (e) {}
+    }
+
+    return resp;
   },
 
   async verificarStatus(codigoFunc) {

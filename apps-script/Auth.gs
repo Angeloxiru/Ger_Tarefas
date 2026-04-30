@@ -8,8 +8,7 @@ function Auth_verificarCracha(codigo) {
 
   codigo = codigo.trim().toUpperCase();
 
-  var sheet = getSheet('Funcionarios');
-  var dados = sheet.getDataRange().getValues();
+  var dados = getSheetDataCached('Funcionarios', 600);
   var headers = dados[0];
 
   var idxCodigo = headers.indexOf('codigo');
@@ -46,8 +45,7 @@ function Auth_login(codigo, senha) {
 
   codigo = codigo.trim().toUpperCase();
 
-  var sheet = getSheet('Funcionarios');
-  var dados = sheet.getDataRange().getValues();
+  var dados = getSheetDataCached('Funcionarios', 600);
   var headers = dados[0];
 
   var idxCodigo = headers.indexOf('codigo');
@@ -64,7 +62,6 @@ function Auth_login(codigo, senha) {
         return { sucesso: false, mensagem: 'Funcionário inativo. Procure o supervisor.' };
       }
 
-      // Verificar senha somente se houver uma cadastrada
       var senhaArmazenada = idxSenha >= 0 ? String(row[idxSenha]).trim() : '';
       if (senhaArmazenada !== '') {
         if (!senha || senha.trim() !== senhaArmazenada) {
