@@ -47,7 +47,7 @@ Ger_Tarefas/
 | Coluna | Tipo | Exemplo | Descricao |
 |--------|------|---------|-----------|
 | codigo | texto | PL4 | Codigo unico do cracha (QRcode) |
-| nome | texto | Angelo Lopes | Nome completo |
+| nome | texto | Angelo | Nome |
 | nome_completo | texto | Angelo Lopes | Nome completo |
 | cargo | texto | Operador | Cargo/funcao |
 | ativo | booleano | TRUE | Se esta ativo |
