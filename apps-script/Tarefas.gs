@@ -184,6 +184,8 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
       if (carga) {
         var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
         resultado.dados.distribuicao = distribuicao;
+        // Gravar volumes no Registros para que o historico leia sem recalcular
+        salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
       }
 
       return resultado;
@@ -191,6 +193,60 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
   }
 
   return { sucesso: false, mensagem: 'Registro não encontrado.' };
+}
+
+// Gravar volumes_proporcionais nas linhas de Registros de cada worker da carga.
+// Chamado a cada finalizacao para que o historico leia o valor snapshot, sem recalcular.
+function salvarVolumesDistribuicao(numeroCarga, distribuicao) {
+  if (!distribuicao || distribuicao.length === 0) return;
+
+  // Mapa codigo_func -> volumes (exclui o worker virtual AJUDANTE)
+  var mapaVolumes = {};
+  for (var d = 0; d < distribuicao.length; d++) {
+    var cod = String(distribuicao[d].codigo_func).trim().toUpperCase();
+    if (cod !== 'AJUDANTE') {
+      mapaVolumes[cod] = distribuicao[d].volumes_proporcionais;
+    }
+  }
+
+  // Mapear id_registro -> codigo_func para esta carga
+  var sheetCargas = getSheet('Cargas');
+  var dadosCargas = sheetCargas.getDataRange().getValues();
+  var hCargas = dadosCargas[0];
+  var idxCIdReg    = hCargas.indexOf('id_registro');
+  var idxCCodFunc  = hCargas.indexOf('codigo_func');
+  var idxCNumCarga = hCargas.indexOf('numero_carga');
+
+  var idRegParaFunc = {};
+  for (var c = 1; c < dadosCargas.length; c++) {
+    if (dadosCargas[c][idxCNumCarga] === numeroCarga) {
+      var cf = String(dadosCargas[c][idxCCodFunc]).trim().toUpperCase();
+      idRegParaFunc[dadosCargas[c][idxCIdReg]] = cf;
+    }
+  }
+
+  // Localizar (ou criar) coluna volumes_proporcionais em Registros
+  var sheetReg = getSheet('Registros');
+  var dadosReg = sheetReg.getDataRange().getValues();
+  var hReg = dadosReg[0];
+  var idxRegId  = hReg.indexOf('id_registro');
+  var idxVolCol = hReg.indexOf('volumes_proporcionais');
+
+  if (idxVolCol === -1) {
+    idxVolCol = hReg.length;
+    sheetReg.getRange(1, idxVolCol + 1).setValue('volumes_proporcionais');
+  }
+
+  // Atualizar cada linha cujo id_registro pertence a esta carga
+  for (var r = 1; r < dadosReg.length; r++) {
+    var idReg = dadosReg[r][idxRegId];
+    if (idRegParaFunc[idReg] !== undefined) {
+      var funcUpper = idRegParaFunc[idReg];
+      if (mapaVolumes[funcUpper] !== undefined) {
+        sheetReg.getRange(r + 1, idxVolCol + 1).setValue(mapaVolumes[funcUpper]);
+      }
+    }
+  }
 }
 
 // Buscar carga associada a um registro
