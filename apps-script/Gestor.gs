@@ -148,14 +148,16 @@ function Gestor_historico(params) {
   var dados = sheetReg.getDataRange().getValues();
   var headers = dados[0];
 
-  var idxId = headers.indexOf('id_registro');
-  var idxCodFunc = headers.indexOf('codigo_func');
-  var idxIdTarefa = headers.indexOf('id_tarefa');
-  var idxNomeTarefa = headers.indexOf('nome_tarefa');
-  var idxDataInicio = headers.indexOf('data_inicio');
-  var idxDataFim = headers.indexOf('data_fim');
-  var idxStatus = headers.indexOf('status');
+  var idxId            = headers.indexOf('id_registro');
+  var idxCodFunc       = headers.indexOf('codigo_func');
+  var idxIdTarefa      = headers.indexOf('id_tarefa');
+  var idxNomeTarefa    = headers.indexOf('nome_tarefa');
+  var idxDataInicio    = headers.indexOf('data_inicio');
+  var idxDataFim       = headers.indexOf('data_fim');
+  var idxStatus        = headers.indexOf('status');
   var idxFinalizadoPor = headers.indexOf('finalizado_por');
+  // Coluna gravada na finalizacao — evita recalculo inconsistente no historico
+  var idxVolSalvo      = headers.indexOf('volumes_proporcionais');
 
   var dataInicio = params.data_inicio ? new Date(params.data_inicio) : null;
   var dataFim = params.data_fim ? new Date(params.data_fim + 'T23:59:59') : null;
@@ -188,6 +190,7 @@ function Gestor_historico(params) {
   var mapaNomes = buscarMapaNomes();
 
   var cacheDocas = {};
+  // cacheDist usado apenas como fallback para registros antigos sem coluna gravada
   var cacheDist = {};
 
   var registros = [];
@@ -206,6 +209,13 @@ function Gestor_historico(params) {
     }
 
     var codFuncUpper = String(row[idxCodFunc]).trim().toUpperCase();
+
+    // Ler volumes gravados na finalizacao (coluna pode nao existir em dados antigos)
+    var volSalvo = null;
+    if (idxVolSalvo >= 0 && row[idxVolSalvo] !== '' && row[idxVolSalvo] !== null && row[idxVolSalvo] !== undefined) {
+      volSalvo = Number(row[idxVolSalvo]);
+    }
+
     var registro = {
       id_registro: row[idxId],
       codigo_func: row[idxCodFunc],
@@ -217,7 +227,7 @@ function Gestor_historico(params) {
       finalizado_por: row[idxFinalizadoPor],
       numero_carga: null,
       qtd_volumes: null,
-      volumes_proporcionais: null,
+      volumes_proporcionais: volSalvo,
       nome_doca: null
     };
 
@@ -233,7 +243,8 @@ function Gestor_historico(params) {
         registro.nome_doca = cacheDocas[carga.doca];
       }
 
-      if (registro.status === 'finalizada' || registro.status === 'timeout') {
+      // Fallback: recalcular apenas se o valor nao foi gravado (dados anteriores a esta versao)
+      if (volSalvo === null && (registro.status === 'finalizada' || registro.status === 'timeout')) {
         var chaveCache = carga.numero_carga + '|' + carga.qtd_volumes;
         if (cacheDist[chaveCache] === undefined) {
           cacheDist[chaveCache] = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);

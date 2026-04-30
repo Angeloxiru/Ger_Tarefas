@@ -60,6 +60,11 @@ function verificarTimeouts() {
       var carga = buscarCargaDoRegistro(dados[i][idxId]);
       if (carga) {
         Logger.log('Func ' + dados[i][idxCodFunc] + ' excluido da distribuicao da carga ' + carga.numero_carga + ' por timeout.');
+        // Recalcular e salvar distribuicao para os demais workers (excluindo este que deu timeout)
+        var dist = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
+        if (dist && dist.length > 0) {
+          salvarVolumesDistribuicao(carga.numero_carga, dist);
+        }
       }
     }
   }
