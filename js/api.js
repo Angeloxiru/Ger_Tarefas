@@ -80,7 +80,7 @@ const API = {
   // Fallback JSONP para contornar CORS (ultimo recurso)
   async getFallback(url) {
     return new Promise((resolve) => {
-      const callbackName = '_cb_' + Date.now();
+      const callbackName = '_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
       const timeout = setTimeout(() => {
         delete window[callbackName];
         if (script.parentNode) script.parentNode.removeChild(script);
