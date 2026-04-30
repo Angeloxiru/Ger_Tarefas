@@ -1,6 +1,6 @@
 {
-  "name": "Sistema de Atividades",
-  "short_name": "Ger Tarefas",
+  "name": "Tarefas",
+  "short_name": "Tarefas",
   "description": "Sistema de gerenciamento de tarefas para operações de armazém",
   "start_url": "./index.html",
   "scope": "./",
