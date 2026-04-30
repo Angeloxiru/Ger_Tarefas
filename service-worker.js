@@ -1,7 +1,7 @@
 // service-worker.js - PWA Service Worker
 // Estrategia: cache-first para assets estaticos, network-only para API GAS
 
-const CACHE_NAME = 'ger-tarefas-v2';
+const CACHE_NAME = 'ger-tarefas-v3';
 
 const ASSETS_ESTATICOS = [
   './',
