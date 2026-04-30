@@ -10,13 +10,11 @@ function Carregamento_registrar(dados) {
   var sheet = getSheet('Cargas');
   var agora = new Date();
 
-  // Verificar se este registro ja tem uma carga associada
   var existente = buscarCargaDoRegistro(dados.id_registro);
   if (existente) {
     return { sucesso: false, mensagem: 'Este registro já tem uma carga associada.' };
   }
 
-  // Registrar nova carga
   sheet.appendRow([
     dados.id_registro,
     dados.codigo_func,
@@ -27,7 +25,6 @@ function Carregamento_registrar(dados) {
     dados.ajudante === 'true' || dados.ajudante === true
   ]);
 
-  // Verificar se ha outros trabalhadores na mesma carga
   var resultWorkers = buscarWorkersDaCarga(dados.numero_carga);
   var totalWorkers = resultWorkers.registros.length;
 
@@ -87,30 +84,19 @@ function Carregamento_workersCarga(numeroCarga) {
     return { sucesso: true, dados: { workers: [], total: 0, tem_ajudante: false } };
   }
 
-  // Buscar dados completos dos registros
   var sheetReg = getSheet('Registros');
   var dadosReg = sheetReg.getDataRange().getValues();
   var headersReg = dadosReg[0];
 
   var idxRegId = headersReg.indexOf('id_registro');
-  var idxRegCodFunc = headersReg.indexOf('codigo_func');
   var idxRegDataInicio = headersReg.indexOf('data_inicio');
   var idxRegDataFim = headersReg.indexOf('data_fim');
   var idxRegStatus = headersReg.indexOf('status');
 
-  // Buscar nomes
-  var sheetFunc = getSheet('Funcionarios');
-  var dadosFunc = sheetFunc.getDataRange().getValues();
-  var headersFunc = dadosFunc[0];
-  var idxFuncCodigo = headersFunc.indexOf('codigo');
-  var idxFuncNome = headersFunc.indexOf('nome');
+  // Nomes via cache
+  var mapaNomes = buscarMapaNomes();
 
-  var mapaNomes = {};
-  for (var f = 1; f < dadosFunc.length; f++) {
-    mapaNomes[String(dadosFunc[f][idxFuncCodigo]).trim().toUpperCase()] = dadosFunc[f][idxFuncNome];
-  }
-
-  // Agrupar por funcionario unico (mesmo func pode ter multiplos registros na mesma carga)
+  // Agrupar por funcionario unico
   var mapaWorkers = {};
   for (var j = 0; j < registrosCarga.length; j++) {
     var rc = registrosCarga[j];
@@ -149,7 +135,7 @@ function Carregamento_workersCarga(numeroCarga) {
     workers.push(mapaWorkers[cod]);
   }
 
-  // Buscar total de volumes da carga
+  // Buscar total de volumes (reutilizando dadosCargas ja lidos)
   var sheetCargasAll = getSheet('Cargas');
   var dadosCargasAll = sheetCargasAll.getDataRange().getValues();
   var headersCargasAll = dadosCargasAll[0];
@@ -160,7 +146,7 @@ function Carregamento_workersCarga(numeroCarga) {
   for (var c = 1; c < dadosCargasAll.length; c++) {
     if (dadosCargasAll[c][idxNumCargaAll] === numeroCarga) {
       totalVolumes = dadosCargasAll[c][idxQtdVol];
-      break; // Todas as entradas da mesma carga tem o mesmo total
+      break;
     }
   }
 
@@ -181,7 +167,6 @@ function Carregamento_distribuicao(numeroCarga) {
     return { sucesso: false, mensagem: 'Número da carga não informado.' };
   }
 
-  // Buscar total de volumes
   var sheetCargas = getSheet('Cargas');
   var dadosCargas = sheetCargas.getDataRange().getValues();
   var headersCargas = dadosCargas[0];

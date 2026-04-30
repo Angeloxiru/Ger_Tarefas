@@ -21,5 +21,5 @@ const CONFIG = {
   INTERVALO_VERIFICAR_CARGA: 15000,
 
   // Timeout para requisicoes HTTP (ms)
-  REQUEST_TIMEOUT: 15000
+  REQUEST_TIMEOUT: 8000
 };
