@@ -1,70 +1,90 @@
 // api.js - Camada de comunicacao com Google Apps Script
-// Resolve CORS usando redirect: 'follow' e mode adequado
+// Retry automatico com backoff exponencial e toast de feedback
 
 const API = {
-  // GET request para o Google Apps Script
+
+  // GET com retry automatico
   async get(params) {
     const query = Object.entries(params)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&');
-
     const url = `${CONFIG.API_URL}?${query}`;
+    return await this._executar(() => this._fetchGet(url), url, null);
+  },
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
+  // POST com retry automatico
+  async post(dados) {
+    return await this._executar(() => this._fetchPost(dados), null, dados);
+  },
 
-      const resposta = await fetch(url, {
-        method: 'GET',
-        redirect: 'follow',
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
+  // Orquestra tentativas com backoff e fallback JSONP na ultima rodada
+  async _executar(fn, urlGet, dadosPost) {
+    const max = CONFIG.MAX_TENTATIVAS;
 
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexão esgotado. Verifique sua rede.' };
+    for (let t = 1; t <= max; t++) {
+      if (t > 1) {
+        this._mostrarToast(`Sem resposta, tentando novamente (${t}/${max})...`);
+        await this._esperar(CONFIG.DELAY_RETRY_MS * (t - 1));
       }
-      // Tentar via JSONP como fallback (CORS bloqueado)
-      return await this.getFallback(url);
+
+      try {
+        const resultado = await fn();
+        this._esconderToast();
+        return resultado;
+      } catch (e) {
+        if (t < max) continue;
+
+        // Esgotou tentativas normais: tenta JSONP como ultimo recurso
+        this._esconderToast();
+        if (urlGet)    return await this.getFallback(urlGet);
+        if (dadosPost) return await this.postFallback(dadosPost);
+        return { sucesso: false, mensagem: 'Sem conexão. Verifique o WiFi e tente novamente.' };
+      }
     }
   },
 
-  // POST request para o Google Apps Script
-  async post(dados) {
+  // Fetch GET com timeout controlado
+  async _fetchGet(url) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
+      const r = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
+      clearTimeout(t);
+      return await r.json();
+    } catch (e) {
+      clearTimeout(t);
+      throw e;
+    }
+  },
 
-      const resposta = await fetch(CONFIG.API_URL, {
+  // Fetch POST com timeout controlado
+  async _fetchPost(dados) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
+    try {
+      const r = await fetch(CONFIG.API_URL, {
         method: 'POST',
         redirect: 'follow',
         signal: controller.signal,
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(dados)
       });
-      clearTimeout(timeout);
-
-      return await resposta.json();
-    } catch (erro) {
-      if (erro.name === 'AbortError') {
-        return { sucesso: false, mensagem: 'Tempo de conexão esgotado. Verifique sua rede.' };
-      }
-      // Tentar POST via GET como fallback (CORS bloqueado)
-      return await this.postFallback(dados);
+      clearTimeout(t);
+      return await r.json();
+    } catch (e) {
+      clearTimeout(t);
+      throw e;
     }
   },
 
-  // Fallback GET: usa google.script.run via iframe nao funciona,
-  // entao usamos fetch com mode no-cors + script injection
+  // Fallback JSONP para contornar CORS (ultimo recurso)
   async getFallback(url) {
     return new Promise((resolve) => {
       const callbackName = '_cb_' + Date.now();
       const timeout = setTimeout(() => {
         delete window[callbackName];
         if (script.parentNode) script.parentNode.removeChild(script);
-        resolve({ sucesso: false, mensagem: 'Tempo de conexão esgotado. Verifique sua rede.' });
+        resolve({ sucesso: false, mensagem: 'Sem conexão. Verifique o WiFi e tente novamente.' });
       }, CONFIG.REQUEST_TIMEOUT);
 
       window[callbackName] = function(dados) {
@@ -81,15 +101,35 @@ const API = {
         clearTimeout(timeout);
         delete window[callbackName];
         if (script.parentNode) script.parentNode.removeChild(script);
-        resolve({ sucesso: false, mensagem: 'Erro de conexão. Verifique sua rede WiFi.' });
+        resolve({ sucesso: false, mensagem: 'Sem conexão. Verifique o WiFi e tente novamente.' });
       };
       document.body.appendChild(script);
     });
   },
 
-  // Fallback POST: converte para GET com dados encodados
   async postFallback(dados) {
-    const params = { ...dados };
-    return await this.get(params);
+    return await this.get(dados);
+  },
+
+  // Toast de feedback durante retry (criado dinamicamente, sem depender do HTML)
+  _mostrarToast(msg) {
+    let toast = document.getElementById('api-retry-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'api-retry-toast';
+      toast.className = 'api-retry-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('visivel');
+  },
+
+  _esconderToast() {
+    const toast = document.getElementById('api-retry-toast');
+    if (toast) toast.classList.remove('visivel');
+  },
+
+  _esperar(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 };

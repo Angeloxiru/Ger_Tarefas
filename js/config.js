@@ -20,6 +20,12 @@ const CONFIG = {
   // Intervalo para verificar outros trabalhadores na mesma carga (15 segundos)
   INTERVALO_VERIFICAR_CARGA: 15000,
 
-  // Timeout para requisicoes HTTP (ms)
-  REQUEST_TIMEOUT: 8000
+  // Timeout por tentativa HTTP (ms) — GAS cold start pode levar ate 8s
+  REQUEST_TIMEOUT: 10000,
+
+  // Numero maximo de tentativas antes de desistir
+  MAX_TENTATIVAS: 3,
+
+  // Espera entre tentativas (ms) — dobra a cada retry: 2s, 4s
+  DELAY_RETRY_MS: 2000
 };
