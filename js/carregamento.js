@@ -52,7 +52,9 @@ const Carregamento = {
 
     const validos = Object.values(mapaWorkers);
     const finalizados = validos.filter(w => w.status === 'finalizada');
-    const paraCalculo = finalizados.length > 0 ? finalizados : validos;
+    const emAndamento = validos.filter(w => w.status === 'em_andamento');
+    // Se algum worker ainda esta ativo, incluir todos; senao usar apenas os finalizados
+    const paraCalculo = emAndamento.length > 0 ? validos : finalizados;
 
     if (paraCalculo.length === 0) return [];
 
