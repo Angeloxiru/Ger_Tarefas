@@ -96,7 +96,7 @@ function Carregamento_workersCarga(numeroCarga) {
   // Nomes via cache
   var mapaNomes = buscarMapaNomes();
 
-  // Agrupar por funcionario unico
+  // Agrupar por funcionario unico, rastreando min inicio e max fim entre sessoes
   var mapaWorkers = {};
   for (var j = 0; j < registrosCarga.length; j++) {
     var rc = registrosCarga[j];
@@ -107,22 +107,36 @@ function Carregamento_workersCarga(numeroCarga) {
         var status = dadosReg[k][idxRegStatus];
         var dataInicio = dadosReg[k][idxRegDataInicio];
         var dataFim = dadosReg[k][idxRegDataFim];
+        var inicioMs = new Date(dataInicio).getTime();
+        var fimMs = dataFim ? new Date(dataFim).getTime() : null;
 
         if (!mapaWorkers[codFunc]) {
           mapaWorkers[codFunc] = {
             codigo_func: rc.codigo_func,
             nome_func: mapaNomes[codFunc] || rc.codigo_func,
             data_inicio: formatarData(dataInicio),
-            data_fim: dataFim ? formatarData(dataFim) : null,
+            data_fim: fimMs ? formatarData(dataFim) : null,
+            _inicioMs: inicioMs,
+            _fimMs: fimMs,
             status: status
           };
         } else {
-          if (status === 'finalizada') mapaWorkers[codFunc].status = 'finalizada';
-          if (status === 'em_andamento') {
+          // Menor inicio entre todas as sessoes
+          if (inicioMs < mapaWorkers[codFunc]._inicioMs) {
+            mapaWorkers[codFunc]._inicioMs = inicioMs;
+            mapaWorkers[codFunc].data_inicio = formatarData(dataInicio);
+          }
+          // Sessao em andamento: data_fim fica nula; senao guardar o maior fim
+          if (fimMs === null) {
+            mapaWorkers[codFunc]._fimMs = null;
             mapaWorkers[codFunc].data_fim = null;
-            if (mapaWorkers[codFunc].status !== 'finalizada') {
-              mapaWorkers[codFunc].status = 'em_andamento';
-            }
+            mapaWorkers[codFunc].status = 'em_andamento';
+          } else if (mapaWorkers[codFunc]._fimMs !== null && fimMs > mapaWorkers[codFunc]._fimMs) {
+            mapaWorkers[codFunc]._fimMs = fimMs;
+            mapaWorkers[codFunc].data_fim = formatarData(dataFim);
+          }
+          if (status === 'finalizada' && mapaWorkers[codFunc].status !== 'em_andamento') {
+            mapaWorkers[codFunc].status = 'finalizada';
           }
         }
         break;
@@ -132,7 +146,14 @@ function Carregamento_workersCarga(numeroCarga) {
 
   var workers = [];
   for (var cod in mapaWorkers) {
-    workers.push(mapaWorkers[cod]);
+    var w = mapaWorkers[cod];
+    workers.push({
+      codigo_func: w.codigo_func,
+      nome_func: w.nome_func,
+      data_inicio: w.data_inicio,
+      data_fim: w.data_fim,
+      status: w.status
+    });
   }
 
   // Buscar total de volumes (reutilizando dadosCargas ja lidos)

@@ -346,6 +346,14 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
             data_inicio: dataInicio.toISOString(),
             data_fim: dataFim.toISOString()
           };
+        } else {
+          // Manter o menor inicio e maior fim para o calculo correto do ajudante
+          if (dataInicio.getTime() < new Date(mapaWorkers[codFunc].data_inicio).getTime()) {
+            mapaWorkers[codFunc].data_inicio = dataInicio.toISOString();
+          }
+          if (dataFim.getTime() > new Date(mapaWorkers[codFunc].data_fim).getTime()) {
+            mapaWorkers[codFunc].data_fim = dataFim.toISOString();
+          }
         }
 
         mapaWorkers[codFunc].tempo_ms += tempoMs;
