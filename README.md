@@ -48,6 +48,7 @@ Ger_Tarefas/
 |--------|------|---------|-----------|
 | codigo | texto | PL4 | Codigo unico do cracha (QRcode) |
 | nome | texto | Angelo Lopes | Nome completo |
+| nome_completo | texto | Angelo Lopes | Nome completo |
 | cargo | texto | Operador | Cargo/funcao |
 | ativo | booleano | TRUE | Se esta ativo |
 | perfil | texto | funcionario | "funcionario" ou "gestor" |
@@ -232,6 +233,7 @@ Workers com timeout sao excluidos da distribuicao de volumes — apenas quem fin
 
 O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 - **Funcionarios**: codigo `PL4` -> exibe `Angelo Lopes` (da aba Funcionarios)
+- **Funcionarios (nome_completo)**: codigo `PL4` -> exibe `Angelo Lopes` (da coluna `nome_completo` da aba Funcionarios)
 - **Docas**: codigo `D01` -> exibe `Doca Norte` (da aba Docas)
 
 ---
