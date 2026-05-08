@@ -20,12 +20,18 @@ Ger_Tarefas/
 │
 ├── js/
 │   ├── config.js           # URL da API e constantes do sistema
-│   ├── api.js              # Comunicacao com backend (fetch + JSONP fallback)
+│   ├── api.js              # Comunicacao com backend (fetch + JSONP fallback + retry)
 │   ├── auth.js             # Login/logout e sessao
+│   ├── ui.js               # Modal de confirmacao customizado
 │   ├── scanner.js          # Leitura de QRcode via camera
 │   ├── tarefas.js          # Iniciar/finalizar tarefas + cronometro
 │   ├── carregamento.js     # Distribuicao de volumes entre workers
-│   └── gestor.js           # Dashboard, historico, cadastros, alertas
+│   └── gestor.js           # Dashboard, historico, alertas, Raio X
+│
+├── manifest.json           # PWA manifest
+├── service-worker.js       # PWA service worker (cache-first)
+├── icon-192.png            # Icone PWA 192x192
+└── icon-512.png            # Icone PWA 512x512
 │
 ├── apps-script/
 │   ├── Code.gs             # Roteador principal (doGet/doPost)
@@ -74,6 +80,7 @@ Ger_Tarefas/
 | data_fim | datetime | 2024-01-15 16:45:10 | Quando finalizou (vazio se em andamento) |
 | status | texto | em_andamento | "em_andamento", "finalizada" ou "timeout" |
 | finalizado_por | texto | funcionario | "funcionario" ou "sistema" |
+| volumes_proporcionais | numero | 245 | Volumes atribuidos ao worker (gravado na finalizacao) |
 
 ### Cargas
 | Coluna | Tipo | Exemplo | Descricao |
@@ -135,6 +142,7 @@ Todos via parametro `acao` no GET. POST tambem suportado, com fallback JSONP par
 | `listar_alertas` | Lista alertas (todos ou de um funcionario) |
 | `cadastrar_funcionario` | Cadastra novo funcionario (com senha) |
 | `cadastrar_tarefa` | Cadastra nova tarefa |
+| `raiox` | Resumo por periodo (equipe ou individual) — ver secao Raio X |
 
 Formato de resposta:
 ```json
@@ -223,9 +231,32 @@ Workers com timeout sao excluidos da distribuicao de volumes — apenas quem fin
 
 1. **Tempo Real**: Lista de funcionarios com status (ocioso/em andamento/alerta/timeout), filtros por tarefa e status, mostra doca e carga quando aplicavel
 2. **Tarefas**: Mesmo painel do funcionario (Carregamento em destaque + Outras Tarefas) — gestores tambem executam tarefas
-3. **Historico**: Filtro por data + Todos/Individual (scan QRcode do funcionario). Tabela com nome do funcionario, tarefa, doca, carga, volumes proporcionais e status. Usa cache de distribuicao por carga para evitar timeout
+3. **Historico**: Filtro por data + Todos/Individual (scan QRcode do funcionario). Tabela com nome do funcionario, tarefa, doca, carga, volumes proporcionais e status
 4. **Alertas**: Registrar alertas para funcionarios (scan do cracha + exibe nome do funcionario + descricao) e visualizar alertas recentes
-5. **Cadastro**: Cadastro de funcionarios (com senha) e tarefas
+5. **Raio X**: Analise de desempenho por periodo (Diario/Semanal/Mensal) — ver secao abaixo
+
+---
+
+## Raio X
+
+Ferramenta de analise disponivel no painel do gestor (aba "Raio X").
+
+### Fluxo de uso
+1. Selecionar o periodo: **Diario** (dia corrente), **Semanal** (domingo a sabado da semana corrente) ou **Mensal** (mes corrente)
+2. Escolher o modo:
+
+**Resumo Equipe**
+- Um quadro por tarefa existente no sistema
+- Cada quadro lista os funcionarios que executaram aquela tarefa no periodo, com o tempo total trabalhado
+- Funcionarios sem registro no periodo nao aparecem
+- Ordenacao por tempo crescente (menos tempo primeiro)
+- Para tarefas de carregamento: exibe tambem os volumes proporcionais atribuidos
+
+**Detalhado**
+- Lista todos os funcionarios ativos (coluna `ativo = TRUE` na aba Funcionarios)
+- Ao selecionar um funcionario: exibe o Raio X individual com contexto (periodo + modo + nome)
+- Raio X individual mostra: total de tempo por tarefa, volumes (para carregamento), e total de alertas recebidos no periodo
+- Botao "←" para voltar a lista de funcionarios sem precisar reselecionar o periodo
 
 ---
 
@@ -258,8 +289,38 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 ### Google Apps Script
 1. Copiar todos os arquivos `.gs` da pasta `apps-script/` para o projeto
 2. Publicar como Web App ("Qualquer pessoa" pode acessar)
-3. Copiar a URL gerada para `js/config.js`
+3. Copiar a URL gerada para `js/config.js` (campo `API_URL`)
 4. Configurar trigger: executar `configurarTriggerTimeout()` uma vez (cria trigger de 30 min)
+
+### Atualizando a URL do GAS (evitar falha de login apos novo deploy)
+
+Toda vez que uma nova versao do Web App e publicada no GAS, uma nova URL e gerada. Se apenas o arquivo `js/config.js` for atualizado no repositorio sem as etapas abaixo, o GitHub Pages CDN continuara servindo a versao antiga do arquivo por horas ou dias, fazendo com que os usuarios recebam erro de CORS e nao consigam logar.
+
+**Processo correto (obrigatorio a cada troca de URL):**
+
+1. Atualize a `API_URL` em `js/config.js` com a nova URL do GAS
+2. Em todos os arquivos HTML (`index.html`, `painel.html`, `carregamento.html`, `gestor.html`), incremente o numero de versao na tag de inclusao do config:
+   ```html
+   <!-- Antes -->
+   <script src="js/config.js?v=2"></script>
+   <!-- Depois -->
+   <script src="js/config.js?v=3"></script>
+   ```
+3. Em `service-worker.js`, incremente o `CACHE_NAME`:
+   ```javascript
+   // Antes
+   const CACHE_NAME = 'ger-tarefas-v4';
+   // Depois
+   const CACHE_NAME = 'ger-tarefas-v5';
+   ```
+4. Commite e faca push de **todos** os arquivos alterados (config.js, os 4 HTMLs, service-worker.js)
+5. Faca merge para `main` e aguarde 1-2 minutos para o GitHub Pages processar o deploy
+6. Teste abrindo o app em aba anonima (sem cache) e verificando que o login funciona
+
+**Por que isso e necessario:**
+- O GitHub Pages usa CDN com cache agressivo. Quando o navegador solicita `config.js`, o CDN pode retornar a versao antiga ate o cache expirar
+- Ao mudar a URL da tag `<script>` (de `?v=2` para `?v=3`), o navegador entende que e um arquivo diferente e busca a versao nova diretamente
+- O service worker tambem precisa ser atualizado para que dispositivos com o PWA instalado invalide o cache antigo e baixe o novo `config.js`
 
 ### GitHub Pages
 - Fazer merge para `main` -> deploy automatico

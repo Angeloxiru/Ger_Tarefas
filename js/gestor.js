@@ -239,6 +239,7 @@ const Gestor = {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    const periodoLabel = { diario: 'Diário', semanal: 'Semanal', mensal: 'Mensal' }[dados.periodo] || dados.periodo;
     const temAlerta = dados.total_alertas > 0;
     const alertaBorda = temAlerta ? '#ef4444' : '#0d9f6e';
     const alertaCor   = temAlerta ? '#ef4444' : '#0d9f6e';
@@ -247,6 +248,10 @@ const Gestor = {
       : '✓ Sem alertas no período';
 
     let html = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <button onclick="raixoMostrarFuncionarios()" style="background:none;border:none;color:#1a73e8;font-size:1.3rem;cursor:pointer;padding:0 4px 0 0;line-height:1;">&#8592;</button>
+        <span style="font-size:0.8rem;color:#888;">${periodoLabel} &middot; Detalhado</span>
+      </div>
       <div class="raiox-task-card" style="border-left-color:#1a73e8;">
         <div style="font-size:1.05rem;font-weight:700;color:#1a73e8;">${dados.funcionario.nome}</div>
       </div>
