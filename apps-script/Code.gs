@@ -67,6 +67,10 @@ function doGet(e) {
         resultado = Gestor_listarAlertas(e.parameter.codigo_func);
         break;
 
+      case 'raiox':
+        resultado = Gestor_raiox(e.parameter);
+        break;
+
       case 'cadastrar_funcionario':
         resultado = Gestor_cadastrarFuncionario(e.parameter);
         break;

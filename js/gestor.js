@@ -193,6 +193,92 @@ const Gestor = {
     container.innerHTML = html;
   },
 
+  async buscarRaiox(periodo, tipo, codigoFunc) {
+    const params = { acao: 'raiox', periodo, tipo };
+    if (codigoFunc) params.codigo_func = codigoFunc;
+    return await API.get(params);
+  },
+
+  renderizarRaioxEquipe(containerId, dados) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!dados.tarefas || dados.tarefas.length === 0) {
+      container.innerHTML = '<div class="card" style="text-align:center;padding:24px;"><p style="color:#666;">Nenhum registro encontrado no período.</p></div>';
+      return;
+    }
+
+    container.innerHTML = dados.tarefas.map(tarefa => {
+      const rows = tarefa.workers.map(w => {
+        const tempo = Tarefas.formatarDuracao(w.tempo_ms);
+        const vol = tarefa.tem_volumes
+          ? `<span class="raiox-vol">${w.tem_volumes ? w.volumes + ' vol' : '—'}</span>`
+          : '';
+        return `
+          <div class="raiox-worker-row">
+            <span class="raiox-worker-name">${w.nome_func}</span>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span class="raiox-worker-time">${tempo}</span>
+              ${vol}
+            </div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="raiox-task-card">
+          <div class="raiox-task-title">
+            ${tarefa.nome_tarefa}
+            <span style="font-size:0.78rem;font-weight:400;color:#888;">(${tarefa.workers.length} func.)</span>
+          </div>
+          ${rows}
+        </div>`;
+    }).join('');
+  },
+
+  renderizarRaioxIndividual(containerId, dados) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const temAlerta = dados.total_alertas > 0;
+    const alertaBorda = temAlerta ? '#ef4444' : '#0d9f6e';
+    const alertaCor   = temAlerta ? '#ef4444' : '#0d9f6e';
+    const alertaTexto = temAlerta
+      ? `⚠ ${dados.total_alertas} alerta${dados.total_alertas > 1 ? 's' : ''} no período`
+      : '✓ Sem alertas no período';
+
+    let html = `
+      <div class="raiox-task-card" style="border-left-color:#1a73e8;">
+        <div style="font-size:1.05rem;font-weight:700;color:#1a73e8;">${dados.funcionario.nome}</div>
+      </div>
+      <div class="raiox-task-card" style="border-left-color:${alertaBorda};">
+        <span style="color:${alertaCor};font-weight:600;font-size:0.92rem;">${alertaTexto}</span>
+      </div>`;
+
+    if (!dados.tarefas || dados.tarefas.length === 0) {
+      html += '<div class="card" style="text-align:center;padding:20px;"><p style="color:#666;">Nenhuma tarefa realizada no período.</p></div>';
+    } else {
+      html += dados.tarefas.map(t => {
+        const tempo = Tarefas.formatarDuracao(t.tempo_ms);
+        const volRow = t.tem_volumes ? `
+          <div class="raiox-worker-row">
+            <span class="raiox-worker-name" style="color:#666;">Volumes</span>
+            <span class="raiox-vol">${t.volumes} vol</span>
+          </div>` : '';
+        return `
+          <div class="raiox-task-card">
+            <div class="raiox-task-title">${t.nome_tarefa}</div>
+            <div class="raiox-worker-row">
+              <span class="raiox-worker-name" style="color:#666;">Tempo total</span>
+              <span class="raiox-worker-time" style="font-size:1rem;font-weight:700;color:#222;">${tempo}</span>
+            </div>
+            ${volRow}
+          </div>`;
+      }).join('');
+    }
+
+    container.innerHTML = html;
+  },
+
   iniciarAtualizacao(callback) {
     this.pararAtualizacao();
     this.intervaloPainel = setInterval(callback, CONFIG.INTERVALO_PAINEL_GESTOR);

@@ -365,6 +365,187 @@ function Gestor_listarAlertas(codigoFunc) {
   return { sucesso: true, dados: alertas };
 }
 
+// Raio X - Resumo por periodo (equipe ou individual)
+function Gestor_raiox(params) {
+  var periodo = params.periodo || 'diario';
+  var tipo    = params.tipo    || 'equipe';
+  var codigoFuncParam = params.codigo_func ? params.codigo_func.trim().toUpperCase() : null;
+
+  // Calcular intervalo de datas no fuso do script
+  var tz = Session.getScriptTimeZone();
+  var hojeStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd').split('-');
+  var ano = parseInt(hojeStr[0], 10);
+  var mes = parseInt(hojeStr[1], 10) - 1;
+  var dia = parseInt(hojeStr[2], 10);
+
+  var dataInicio, dataFim;
+  if (periodo === 'diario') {
+    dataInicio = new Date(ano, mes, dia, 0, 0, 0, 0);
+    dataFim    = new Date(ano, mes, dia, 23, 59, 59, 999);
+  } else if (periodo === 'semanal') {
+    var diasDomingo = new Date(ano, mes, dia).getDay();
+    dataInicio = new Date(ano, mes, dia - diasDomingo, 0, 0, 0, 0);
+    dataFim    = new Date(ano, mes, dia + (6 - diasDomingo), 23, 59, 59, 999);
+  } else {
+    dataInicio = new Date(ano, mes, 1, 0, 0, 0, 0);
+    dataFim    = new Date(ano, mes + 1, 0, 23, 59, 59, 999);
+  }
+
+  // Lista de funcionarios ativos (para seletor do Detalhado)
+  if (tipo === 'funcionarios') {
+    var dadosFunc = getSheetDataCached('Funcionarios', 600);
+    var hFunc = dadosFunc[0];
+    var ixCod  = hFunc.indexOf('codigo');
+    var ixNome = hFunc.indexOf('nome');
+    var ixAtiv = hFunc.indexOf('ativo');
+    var funcionarios = [];
+    for (var f = 1; f < dadosFunc.length; f++) {
+      if (!dadosFunc[f][ixAtiv]) continue;
+      funcionarios.push({
+        codigo: String(dadosFunc[f][ixCod]).trim().toUpperCase(),
+        nome: dadosFunc[f][ixNome]
+      });
+    }
+    funcionarios.sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+    return { sucesso: true, dados: { funcionarios: funcionarios } };
+  }
+
+  // Ler Registros frescos (sem cache)
+  var sheetReg = getSheet('Registros');
+  var dadosReg = sheetReg.getDataRange().getValues();
+  var hReg = dadosReg[0];
+  var ixId      = hReg.indexOf('id_registro');
+  var ixCodFunc = hReg.indexOf('codigo_func');
+  var ixIdTar   = hReg.indexOf('id_tarefa');
+  var ixNomeTar = hReg.indexOf('nome_tarefa');
+  var ixIni     = hReg.indexOf('data_inicio');
+  var ixFimCol  = hReg.indexOf('data_fim');
+  var ixStatus  = hReg.indexOf('status');
+  var ixVol     = hReg.indexOf('volumes_proporcionais');
+
+  var mapaNomes = buscarMapaNomes();
+
+  var registros = [];
+  for (var r = 1; r < dadosReg.length; r++) {
+    var row = dadosReg[r];
+    var status = row[ixStatus];
+    if (status !== 'finalizada' && status !== 'timeout') continue;
+
+    var dtIni = new Date(row[ixIni]);
+    if (dtIni < dataInicio || dtIni > dataFim) continue;
+
+    var codFunc = String(row[ixCodFunc]).trim().toUpperCase();
+    if (codigoFuncParam && codFunc !== codigoFuncParam) continue;
+
+    var dtFim = row[ixFimCol] ? new Date(row[ixFimCol]) : null;
+    var tempoMs = dtFim ? Math.max(dtFim.getTime() - dtIni.getTime(), 0) : 0;
+
+    var vol = null;
+    if (ixVol >= 0 && row[ixVol] !== '' && row[ixVol] !== null && row[ixVol] !== undefined) {
+      vol = Number(row[ixVol]);
+    }
+
+    registros.push({
+      codigo_func: codFunc,
+      nome_func:   mapaNomes[codFunc] || row[ixCodFunc],
+      id_tarefa:   row[ixIdTar],
+      nome_tarefa: row[ixNomeTar],
+      tempo_ms:    tempoMs,
+      volumes:     vol
+    });
+  }
+
+  // --- RESUMO EQUIPE ---
+  if (tipo === 'equipe') {
+    var mapaTarefas = {};
+    for (var i = 0; i < registros.length; i++) {
+      var reg = registros[i];
+      var tid = reg.id_tarefa;
+      if (!mapaTarefas[tid]) {
+        mapaTarefas[tid] = { id_tarefa: tid, nome_tarefa: reg.nome_tarefa, workers: {}, tem_volumes: false };
+      }
+      var cf = reg.codigo_func;
+      if (!mapaTarefas[tid].workers[cf]) {
+        mapaTarefas[tid].workers[cf] = {
+          codigo_func: cf, nome_func: reg.nome_func,
+          tempo_ms: 0, volumes: 0, tem_volumes: false
+        };
+      }
+      mapaTarefas[tid].workers[cf].tempo_ms += reg.tempo_ms;
+      if (reg.volumes !== null) {
+        mapaTarefas[tid].workers[cf].volumes += reg.volumes;
+        mapaTarefas[tid].workers[cf].tem_volumes = true;
+        mapaTarefas[tid].tem_volumes = true;
+      }
+    }
+
+    var tarefas = [];
+    for (var tid2 in mapaTarefas) {
+      var tarefa = mapaTarefas[tid2];
+      var workersArr = [];
+      for (var wcf in tarefa.workers) { workersArr.push(tarefa.workers[wcf]); }
+      workersArr.sort(function(a, b) { return a.tempo_ms - b.tempo_ms; });
+      tarefas.push({
+        id_tarefa: tarefa.id_tarefa, nome_tarefa: tarefa.nome_tarefa,
+        tem_volumes: tarefa.tem_volumes, workers: workersArr
+      });
+    }
+    tarefas.sort(function(a, b) { return a.nome_tarefa.localeCompare(b.nome_tarefa, 'pt-BR'); });
+
+    return { sucesso: true, dados: { tipo: 'equipe', periodo: periodo, tarefas: tarefas } };
+  }
+
+  // --- DETALHADO INDIVIDUAL ---
+  if (tipo === 'individual') {
+    if (!codigoFuncParam) {
+      return { sucesso: false, mensagem: 'Código do funcionário não informado.' };
+    }
+
+    var mapaT = {};
+    for (var j = 0; j < registros.length; j++) {
+      var regJ = registros[j];
+      var tidJ = regJ.id_tarefa;
+      if (!mapaT[tidJ]) {
+        mapaT[tidJ] = { id_tarefa: tidJ, nome_tarefa: regJ.nome_tarefa, tempo_ms: 0, volumes: 0, tem_volumes: false };
+      }
+      mapaT[tidJ].tempo_ms += regJ.tempo_ms;
+      if (regJ.volumes !== null) {
+        mapaT[tidJ].volumes += regJ.volumes;
+        mapaT[tidJ].tem_volumes = true;
+      }
+    }
+
+    var tarefasFunc = [];
+    for (var tid3 in mapaT) { tarefasFunc.push(mapaT[tid3]); }
+    tarefasFunc.sort(function(a, b) { return b.tempo_ms - a.tempo_ms; });
+
+    // Contar alertas no periodo
+    var sheetAlertas = getSheet('Alertas');
+    var dadosAlertas = sheetAlertas.getDataRange().getValues();
+    var hAlertas = dadosAlertas[0];
+    var ixACod  = hAlertas.indexOf('codigo_func');
+    var ixAData = hAlertas.indexOf('data_alerta');
+    var totalAlertas = 0;
+    for (var a = 1; a < dadosAlertas.length; a++) {
+      if (String(dadosAlertas[a][ixACod]).trim().toUpperCase() !== codigoFuncParam) continue;
+      var dtAlerta = new Date(dadosAlertas[a][ixAData]);
+      if (dtAlerta >= dataInicio && dtAlerta <= dataFim) totalAlertas++;
+    }
+
+    return {
+      sucesso: true,
+      dados: {
+        tipo: 'individual', periodo: periodo,
+        funcionario: { codigo: codigoFuncParam, nome: mapaNomes[codigoFuncParam] || codigoFuncParam },
+        tarefas: tarefasFunc,
+        total_alertas: totalAlertas
+      }
+    };
+  }
+
+  return { sucesso: false, mensagem: 'Tipo inválido.' };
+}
+
 // Cadastrar nova tarefa
 function Gestor_cadastrarTarefa(dados) {
   if (!dados.nome) {

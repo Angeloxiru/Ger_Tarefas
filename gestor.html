@@ -31,7 +31,7 @@
       <button class="tab" data-tab="tarefas" onclick="trocarTab('tarefas')">Tarefas</button>
       <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Histórico</button>
       <button class="tab" data-tab="alertas" onclick="trocarTab('alertas')">Alertas</button>
-      <button class="tab" data-tab="cadastro" onclick="trocarTab('cadastro')">Cadastro</button>
+      <button class="tab" data-tab="raiox" onclick="trocarTab('raiox')">Raio X</button>
     </div>
 
     <!-- Tab: Tempo Real -->
@@ -201,55 +201,22 @@
       </div>
     </div>
 
-    <!-- Tab: Cadastro -->
-    <div id="tab-cadastro" class="tab-content">
-      <div class="card">
-        <h3 class="card-title mb-12">Novo Funcionário</h3>
-        <div class="form-group">
-          <label>Código (crachá)</label>
-          <input type="text" id="cad-func-codigo" placeholder="Ex: PL4" maxlength="10">
-        </div>
-        <div class="form-group">
-          <label>Nome completo</label>
-          <input type="text" id="cad-func-nome" placeholder="Ex: Angelo Lopes">
-        </div>
-        <div class="form-group">
-          <label>Cargo</label>
-          <input type="text" id="cad-func-cargo" placeholder="Ex: Operador">
-        </div>
-        <div class="form-group">
-          <label>Perfil</label>
-          <select id="cad-func-perfil">
-            <option value="funcionario">Funcionário</option>
-            <option value="gestor">Gestor</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Senha</label>
-          <input type="text" id="cad-func-senha" placeholder="Senha do funcionario">
-        </div>
-        <button class="btn btn-success" onclick="cadastrarFuncionario()">Cadastrar Funcionário</button>
+    <!-- Tab: Raio X -->
+    <div id="tab-raiox" class="tab-content">
+      <div class="raiox-periodos">
+        <button class="btn-periodo" data-p="diario"  onclick="raixoSelecionarPeriodo('diario')">Diário</button>
+        <button class="btn-periodo" data-p="semanal" onclick="raixoSelecionarPeriodo('semanal')">Semanal</button>
+        <button class="btn-periodo" data-p="mensal"  onclick="raixoSelecionarPeriodo('mensal')">Mensal</button>
       </div>
 
-      <div class="card mt-12">
-        <h3 class="card-title mb-12">Nova Tarefa</h3>
-        <div class="form-group">
-          <label>Nome da tarefa</label>
-          <input type="text" id="cad-tarefa-nome" placeholder="Ex: Conferencia">
-        </div>
-        <div class="form-group">
-          <label>Usa QRcode de carga?</label>
-          <select id="cad-tarefa-qrcode">
-            <option value="false">Nao</option>
-            <option value="true">Sim</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Tempo maximo (minutos)</label>
-          <input type="number" id="cad-tarefa-tempo" placeholder="240" min="1" value="240">
-        </div>
-        <button class="btn btn-success" onclick="cadastrarTarefa()">Cadastrar Tarefa</button>
+      <div id="raiox-tipos" class="raiox-tipos hidden">
+        <button class="btn btn-primary"   onclick="raixoBuscarEquipe()">Resumo Equipe</button>
+        <button class="btn btn-secondary" onclick="raixoMostrarFuncionarios()">Detalhado</button>
       </div>
+
+      <div id="raiox-lista-func" class="hidden" style="margin-top:8px;"></div>
+
+      <div id="raiox-resultado" style="margin-top:8px;"></div>
     </div>
 
     <!-- Modal de scan funcionario (historico) -->
@@ -681,55 +648,66 @@
       }
     }
 
-    // === CADASTRO ===
+    // === RAIO X ===
 
-    async function cadastrarFuncionario() {
-      const dados = {
-        codigo: document.getElementById('cad-func-codigo').value.trim().toUpperCase(),
-        nome: document.getElementById('cad-func-nome').value.trim(),
-        cargo: document.getElementById('cad-func-cargo').value.trim(),
-        perfil: document.getElementById('cad-func-perfil').value,
-        senha: document.getElementById('cad-func-senha').value.trim()
-      };
+    let raioxPeriodo = null;
 
-      if (!dados.codigo || !dados.nome || !dados.cargo || !dados.senha) {
-        mostrarMsg('Preencha todos os campos, incluindo a senha.', 'warning');
-        return;
-      }
-
-      const resultado = await Gestor.cadastrarFuncionario(dados);
-
-      if (resultado.sucesso) {
-        mostrarMsg('Funcionário cadastrado com sucesso!', 'success');
-        document.getElementById('cad-func-codigo').value = '';
-        document.getElementById('cad-func-nome').value = '';
-        document.getElementById('cad-func-cargo').value = '';
-        document.getElementById('cad-func-senha').value = '';
-      } else {
-        mostrarMsg(resultado.mensagem, 'error');
-      }
+    function raixoSelecionarPeriodo(periodo) {
+      raioxPeriodo = periodo;
+      document.querySelectorAll('.btn-periodo').forEach(b => {
+        b.classList.toggle('ativo', b.dataset.p === periodo);
+      });
+      document.getElementById('raiox-tipos').classList.remove('hidden');
+      document.getElementById('raiox-lista-func').classList.add('hidden');
+      document.getElementById('raiox-resultado').innerHTML = '';
     }
 
-    async function cadastrarTarefa() {
-      const dados = {
-        nome: document.getElementById('cad-tarefa-nome').value.trim(),
-        usa_qrcode_carga: document.getElementById('cad-tarefa-qrcode').value === 'true',
-        tempo_maximo_min: parseInt(document.getElementById('cad-tarefa-tempo').value, 10) || 240
-      };
-
-      if (!dados.nome) {
-        mostrarMsg('Informe o nome da tarefa.', 'warning');
+    async function raixoBuscarEquipe() {
+      if (!raioxPeriodo) return;
+      const res = document.getElementById('raiox-resultado');
+      res.innerHTML = '<div class="loading visivel"><div class="spinner"></div><p>Processando...</p></div>';
+      document.getElementById('raiox-lista-func').classList.add('hidden');
+      const resultado = await Gestor.buscarRaiox(raioxPeriodo, 'equipe');
+      if (!resultado.sucesso) {
+        res.innerHTML = `<div class="card" style="text-align:center;"><p>${resultado.mensagem}</p></div>`;
         return;
       }
+      Gestor.renderizarRaioxEquipe('raiox-resultado', resultado.dados);
+    }
 
-      const resultado = await Gestor.cadastrarTarefa(dados);
-
-      if (resultado.sucesso) {
-        mostrarMsg('Tarefa cadastrada com sucesso!', 'success');
-        document.getElementById('cad-tarefa-nome').value = '';
-      } else {
-        mostrarMsg(resultado.mensagem, 'error');
+    async function raixoMostrarFuncionarios() {
+      if (!raioxPeriodo) return;
+      const lista = document.getElementById('raiox-lista-func');
+      lista.innerHTML = '<div class="loading visivel"><div class="spinner"></div><p>Carregando...</p></div>';
+      lista.classList.remove('hidden');
+      document.getElementById('raiox-resultado').innerHTML = '';
+      const resultado = await Gestor.buscarRaiox(raioxPeriodo, 'funcionarios');
+      if (!resultado.sucesso || !resultado.dados.funcionarios) {
+        lista.innerHTML = '<div class="card" style="text-align:center;"><p>Erro ao carregar funcionários.</p></div>';
+        return;
       }
+      const funcs = resultado.dados.funcionarios;
+      if (funcs.length === 0) {
+        lista.innerHTML = '<div class="card" style="text-align:center;"><p>Nenhum funcionário ativo.</p></div>';
+        return;
+      }
+      lista.innerHTML = funcs.map(f => `
+        <div class="task-item" onclick="raixoBuscarIndividual('${f.codigo}')">
+          <span class="task-name">${f.nome}</span>
+          <span class="task-arrow">&rsaquo;</span>
+        </div>
+      `).join('');
+    }
+
+    async function raixoBuscarIndividual(codigoFunc) {
+      const res = document.getElementById('raiox-resultado');
+      res.innerHTML = '<div class="loading visivel"><div class="spinner"></div><p>Processando...</p></div>';
+      const resultado = await Gestor.buscarRaiox(raioxPeriodo, 'individual', codigoFunc);
+      if (!resultado.sucesso) {
+        res.innerHTML = `<div class="card" style="text-align:center;"><p>${resultado.mensagem}</p></div>`;
+        return;
+      }
+      Gestor.renderizarRaioxIndividual('raiox-resultado', resultado.dados);
     }
 
     // === UTILIDADES ===
@@ -745,6 +723,12 @@
         gestorVerificarStatus();
       } else if (tabId === 'alertas') {
         carregarAlertasGestor();
+      } else if (tabId === 'raiox') {
+        raioxPeriodo = null;
+        document.querySelectorAll('.btn-periodo').forEach(b => b.classList.remove('ativo'));
+        document.getElementById('raiox-tipos').classList.add('hidden');
+        document.getElementById('raiox-lista-func').classList.add('hidden');
+        document.getElementById('raiox-resultado').innerHTML = '';
       }
     }
 
