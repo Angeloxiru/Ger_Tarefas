@@ -701,6 +701,8 @@
 
     async function raixoBuscarIndividual(codigoFunc) {
       const res = document.getElementById('raiox-resultado');
+      // Ocultar lista de nomes e mostrar apenas o resultado
+      document.getElementById('raiox-lista-func').classList.add('hidden');
       res.innerHTML = '<div class="loading visivel"><div class="spinner"></div><p>Processando...</p></div>';
       const resultado = await Gestor.buscarRaiox(raioxPeriodo, 'individual', codigoFunc);
       if (!resultado.sucesso) {
