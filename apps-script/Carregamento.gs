@@ -15,6 +15,40 @@ function Carregamento_registrar(dados) {
     return { sucesso: false, mensagem: 'Este registro já tem uma carga associada.' };
   }
 
+  // Verificar se a carga ja foi registrada em outro dia calendário
+  var sheetCargasVerif = getSheet('Cargas');
+  var dadosCargasVerif = sheetCargasVerif.getDataRange().getValues();
+  var headersCargasVerif = dadosCargasVerif[0];
+  var idxVerifNumCarga = headersCargasVerif.indexOf('numero_carga');
+  var idxVerifDataLeitura = headersCargasVerif.indexOf('data_leitura');
+
+  if (idxVerifNumCarga >= 0 && idxVerifDataLeitura >= 0) {
+    var tz = Session.getScriptTimeZone();
+    var hojeStr = Utilities.formatDate(agora, tz, 'yyyy-MM-dd');
+    var diaOriginalStr = null;
+
+    for (var v = 1; v < dadosCargasVerif.length; v++) {
+      if (String(dadosCargasVerif[v][idxVerifNumCarga]).trim() === String(dados.numero_carga).trim()) {
+        var dl = dadosCargasVerif[v][idxVerifDataLeitura];
+        if (dl) {
+          var dlStr = Utilities.formatDate(new Date(dl), tz, 'yyyy-MM-dd');
+          if (diaOriginalStr === null || dlStr < diaOriginalStr) {
+            diaOriginalStr = dlStr;
+          }
+        }
+      }
+    }
+
+    if (diaOriginalStr !== null && diaOriginalStr !== hojeStr) {
+      var partes = diaOriginalStr.split('-');
+      var dataFormatada = partes[2] + '/' + partes[1] + '/' + partes[0];
+      return {
+        sucesso: false,
+        mensagem: 'Carga ' + dados.numero_carga + ' foi registrada em ' + dataFormatada + '. Verifique o QRcode — cargas não passam de um dia para o outro.'
+      };
+    }
+  }
+
   sheet.appendRow([
     dados.id_registro,
     dados.codigo_func,
