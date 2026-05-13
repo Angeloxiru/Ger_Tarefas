@@ -314,6 +314,8 @@ function Gestor_registrarAlerta(dados) {
     return { sucesso: false, mensagem: 'Funcionário não encontrado: ' + codigoFunc };
   }
 
+  var codigoEmissor = dados.codigo_emissor ? dados.codigo_emissor.trim().toUpperCase() : '';
+
   var sheet = getSheet('Alertas');
   var agora = new Date();
   var idRegistro = 'A' + Utilities.formatDate(agora, Session.getScriptTimeZone(), 'yyyyMMddHHmmss') + codigoFunc;
@@ -322,7 +324,8 @@ function Gestor_registrarAlerta(dados) {
     idRegistro,
     codigoFunc,
     agora,
-    dados.descricao.trim()
+    dados.descricao.trim(),
+    codigoEmissor
   ]);
 
   return {
@@ -342,6 +345,7 @@ function Gestor_listarAlertas(codigoFunc) {
   var idxCodFunc = headers.indexOf('codigo_func');
   var idxData = headers.indexOf('data_alerta');
   var idxDesc = headers.indexOf('descricao');
+  var idxEmissor = headers.indexOf('emissor');
 
   var mapaNomes = buscarMapaNomes();
   var filtro = codigoFunc ? codigoFunc.trim().toUpperCase() : null;
@@ -351,12 +355,14 @@ function Gestor_listarAlertas(codigoFunc) {
     var cod = String(dados[i][idxCodFunc]).trim().toUpperCase();
     if (filtro && cod !== filtro) continue;
 
+    var codigEmissor = idxEmissor >= 0 ? String(dados[i][idxEmissor]).trim().toUpperCase() : '';
     alertas.push({
       id_registro: dados[i][idxId],
       codigo_func: dados[i][idxCodFunc],
       nome_func: mapaNomes[cod] || dados[i][idxCodFunc],
       data_alerta: formatarData(dados[i][idxData]),
-      descricao: dados[i][idxDesc]
+      descricao: dados[i][idxDesc],
+      emissor: codigEmissor ? (mapaNomes[codigEmissor] || codigEmissor) : ''
     });
 
     if (alertas.length >= 100) break;

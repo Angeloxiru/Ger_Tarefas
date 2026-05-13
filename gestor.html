@@ -628,7 +628,9 @@
         return;
       }
 
-      const resultado = await Gestor.registrarAlerta(codigoFunc, descricao);
+      const sessao = Auth.obterSessao();
+      const codigoEmissor = sessao ? sessao.codigo : '';
+      const resultado = await Gestor.registrarAlerta(codigoFunc, descricao, codigoEmissor);
 
       if (resultado.sucesso) {
         mostrarMsg(resultado.mensagem, 'success');

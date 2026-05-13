@@ -37,11 +37,12 @@ const Gestor = {
     });
   },
 
-  async registrarAlerta(codigoFunc, descricao) {
+  async registrarAlerta(codigoFunc, descricao, codigoEmissor) {
     return await API.get({
       acao: 'registrar_alerta',
       codigo_func: codigoFunc,
-      descricao: descricao
+      descricao: descricao,
+      codigo_emissor: codigoEmissor || ''
     });
   },
 
@@ -62,6 +63,7 @@ const Gestor = {
 
     container.innerHTML = alertas.map(a => {
       const data = a.data_alerta ? new Date(a.data_alerta).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      const emissorHtml = a.emissor ? `<div style="font-size:0.75rem;color:#888;margin-top:4px;">Emitido por: ${a.emissor}</div>` : '';
       return `
         <div class="card" style="margin-bottom:8px;border-left:4px solid #ef4444;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -69,6 +71,7 @@ const Gestor = {
             <span style="font-size:0.75rem;color:#666;">${data}</span>
           </div>
           <div style="font-size:0.9rem;">${a.descricao}</div>
+          ${emissorHtml}
         </div>
       `;
     }).join('');
