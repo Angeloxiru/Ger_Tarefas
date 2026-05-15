@@ -292,35 +292,28 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 3. Copiar a URL gerada para `js/config.js` (campo `API_URL`)
 4. Configurar trigger: executar `configurarTriggerTimeout()` uma vez (cria trigger de 30 min)
 
-### Atualizando a URL do GAS (evitar falha de login apos novo deploy)
+### Como fazer um deploy (procedimento padrao)
 
-Toda vez que uma nova versao do Web App e publicada no GAS, uma nova URL e gerada. Se apenas o arquivo `js/config.js` for atualizado no repositorio sem as etapas abaixo, o GitHub Pages CDN continuara servindo a versao antiga do arquivo por horas ou dias, fazendo com que os usuarios recebam erro de CORS e nao consigam logar.
+A cada novo deploy, bumpe **3 numeros** nos arquivos abaixo. O restante e automatico.
 
-**Processo correto (obrigatorio a cada troca de URL):**
+| Arquivo | Campo | Exemplo |
+|---------|-------|---------|
+| `js/config.js` | `APP_VERSION` | `'v5'` → `'v6'` |
+| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v5'` → `'ger-tarefas-v6'` |
+| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=5` → `?v=6` |
 
-1. Atualize a `API_URL` em `js/config.js` com a nova URL do GAS
-2. Em todos os arquivos HTML (`index.html`, `painel.html`, `carregamento.html`, `gestor.html`), incremente o numero de versao na tag de inclusao do config:
-   ```html
-   <!-- Antes -->
-   <script src="js/config.js?v=2"></script>
-   <!-- Depois -->
-   <script src="js/config.js?v=3"></script>
-   ```
-3. Em `service-worker.js`, incremente o `CACHE_NAME`:
-   ```javascript
-   // Antes
-   const CACHE_NAME = 'ger-tarefas-v4';
-   // Depois
-   const CACHE_NAME = 'ger-tarefas-v5';
-   ```
-4. Commite e faca push de **todos** os arquivos alterados (config.js, os 4 HTMLs, service-worker.js)
-5. Faca merge para `main` e aguarde 1-2 minutos para o GitHub Pages processar o deploy
-6. Teste abrindo o app em aba anonima (sem cache) e verificando que o login funciona
+Depois: commite todos os arquivos alterados, faca push para `main` e aguarde 1-2 minutos para o GitHub Pages processar.
 
-**Por que isso e necessario:**
-- O GitHub Pages usa CDN com cache agressivo. Quando o navegador solicita `config.js`, o CDN pode retornar a versao antiga ate o cache expirar
-- Ao mudar a URL da tag `<script>` (de `?v=2` para `?v=3`), o navegador entende que e um arquivo diferente e busca a versao nova diretamente
-- O service worker tambem precisa ser atualizado para que dispositivos com o PWA instalado invalide o cache antigo e baixe o novo `config.js`
+**O que acontece automaticamente apos o deploy:**
+1. O browser detecta o novo `service-worker.js` e instala a versao nova
+2. O Service Worker ativa imediatamente (`skipWaiting`) e apaga o cache antigo
+3. Todas as abas abertas recebem uma notificacao `SW_UPDATED` e recarregam sozinhas
+4. O guard de versao no `localStorage` garante a atualizacao mesmo em browsers sem PWA
+
+**Se precisar trocar a URL do GAS (novo deploy do Apps Script):**
+1. Atualize `API_URL` em `js/config.js`
+2. Siga o procedimento de deploy normal acima (bumpando as versoes)
+3. Faca o deploy — o CDN do GitHub Pages servira a versao nova em poucos minutos
 
 ### GitHub Pages
 - Fazer merge para `main` -> deploy automatico
@@ -341,3 +334,29 @@ Toda vez que uma nova versao do Web App e publicada no GAS, uma nova URL e gerad
 - Latencia: 1-3 segundos por requisicao
 - Historico usa cache de distribuicao por carga para evitar timeout em consultas grandes
 - Sugestao: rotina mensal para arquivar registros antigos
+
+---
+
+## Historico de versoes
+
+### v5 — 2025-05-15
+**Validacao automatica de versao e logout por inatividade**
+
+- Adicionado `APP_VERSION` em `config.js` como referencia unica de versao do app
+- Service Worker passa a notificar todas as abas abertas (`SW_UPDATED`) ao ativar uma versao nova — abas recarregam automaticamente sem intervencao do usuario
+- Guard de versao via `localStorage` inserido em todas as paginas: detecta mudanca de versao ao carregar e forca reload imediato (cobre browsers sem suporte a PWA)
+- Script tags atualizados para `?v=5` em todos os HTMLs (cache-bust adicional para CDN do GitHub Pages)
+- Bumped `CACHE_NAME` de `ger-tarefas-v4` para `ger-tarefas-v5`
+
+**Arquivos alterados:** `js/config.js`, `service-worker.js`, `index.html`, `painel.html`, `gestor.html`, `carregamento.html`
+
+---
+
+### v4 — (anterior)
+**Versao de producao com Service Worker cache-first**
+
+- Cache-first para assets estaticos, network-only para chamadas ao GAS
+- `CACHE_NAME = 'ger-tarefas-v4'`
+- Logout automatico por inatividade de 30 minutos sem tarefa ativa (`IDLE_LOGOUT_MS`)
+- Verificacao de idle a cada 60 segundos e ao voltar ao foco da aba (`visibilitychange`)
+- Redirect para `index.html?motivo=inatividade` ao deslogar por idle
