@@ -23,8 +23,7 @@ const Auth = {
       return false;
     }
     if ((Date.now() - ts) > CONFIG.IDLE_LOGOUT_MS) {
-      sessionStorage.removeItem('funcionario');
-      sessionStorage.removeItem('atividade_ts');
+      sessionStorage.clear();
       window.location.href = 'index.html?motivo=inatividade';
       return true;
     }
@@ -46,7 +45,7 @@ const Auth = {
   },
 
   logout() {
-    sessionStorage.removeItem('funcionario');
+    sessionStorage.clear();
     window.location.href = 'index.html';
   },
 
