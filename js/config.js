@@ -20,6 +20,9 @@ const CONFIG = {
   // Intervalo para verificar outros trabalhadores na mesma carga (15 segundos)
   INTERVALO_VERIFICAR_CARGA: 15000,
 
+  // Tempo de inatividade (sem tarefa ativa) para logout automatico: 30 minutos
+  IDLE_LOGOUT_MS: 30 * 60 * 1000,
+
   // Timeout por tentativa HTTP (ms) — GAS cold start pode levar ate 8s
   REQUEST_TIMEOUT: 10000,
 

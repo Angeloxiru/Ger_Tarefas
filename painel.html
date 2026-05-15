@@ -114,6 +114,12 @@
 
       await verificarStatus();
       await carregarMeusAlertas();
+
+      // Logout automatico por inatividade: verificar a cada 60s e ao voltar a tela
+      setInterval(() => Auth.verificarIdleLogout(!!registroAtual), 60000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) Auth.verificarIdleLogout(!!registroAtual);
+      });
     }
 
     async function carregarMeusAlertas() {
@@ -216,6 +222,8 @@
 
     // Iniciar uma tarefa
     async function iniciarTarefa(idTarefa, nomeTarefa, usaQrcodeCarga) {
+      Auth.marcarAtividade();
+
       // Se a tarefa usa QRcode de carga, redirecionar para tela de carregamento
       if (usaQrcodeCarga) {
         sessionStorage.setItem('tarefa_carregamento', JSON.stringify({
@@ -285,6 +293,8 @@
         mostrarMsg(resultado.mensagem, 'error');
         return;
       }
+
+      Auth.marcarAtividade();
 
       // Parar cronometro e monitoramento
       Tarefas.pararCronometro();

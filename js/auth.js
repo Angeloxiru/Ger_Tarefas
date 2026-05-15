@@ -5,6 +5,32 @@ const Auth = {
     sessionStorage.setItem('funcionario', JSON.stringify(funcionario));
   },
 
+  marcarAtividade() {
+    sessionStorage.setItem('atividade_ts', String(Date.now()));
+  },
+
+  // Verifica se o usuario ficou sem tarefa ativa por tempo demais e desloga.
+  // temTarefaAtiva = true: reseta o timer (usuario esta trabalhando).
+  // Retorna true se deslogou.
+  verificarIdleLogout(temTarefaAtiva) {
+    if (temTarefaAtiva) {
+      this.marcarAtividade();
+      return false;
+    }
+    const ts = parseInt(sessionStorage.getItem('atividade_ts') || '0', 10);
+    if (ts === 0) {
+      this.marcarAtividade();
+      return false;
+    }
+    if ((Date.now() - ts) > CONFIG.IDLE_LOGOUT_MS) {
+      sessionStorage.removeItem('funcionario');
+      sessionStorage.removeItem('atividade_ts');
+      window.location.href = 'index.html?motivo=inatividade';
+      return true;
+    }
+    return false;
+  },
+
   obterSessao() {
     const dados = sessionStorage.getItem('funcionario');
     return dados ? JSON.parse(dados) : null;
@@ -33,6 +59,7 @@ const Auth = {
 
     if (dados.sucesso) {
       this.salvarSessao(dados.dados);
+      this.marcarAtividade();
 
       if (dados.dados.perfil === 'gestor') {
         window.location.href = 'gestor.html';
