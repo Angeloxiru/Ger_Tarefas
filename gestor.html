@@ -285,6 +285,8 @@
       Gestor.iniciarAtualizacao(atualizarPainel);
 
       // Ao voltar a tela depois de inatividade, verificar se deve deslogar
+      // Logout automatico por inatividade: verificar a cada 60s e ao voltar a tela
+      setInterval(() => Auth.verificarIdleLogout(!!gestorRegistroAtual), 60000);
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) Auth.verificarIdleLogout(!!gestorRegistroAtual);
       });
@@ -293,9 +295,6 @@
     // === TEMPO REAL ===
 
     async function atualizarPainel() {
-      // O painel em tempo real roda a cada 30s — enquanto roda, o gestor esta ativo
-      Auth.marcarAtividade();
-
       const filtros = {
         tarefa: document.getElementById('filtro-tarefa').value,
         status: document.getElementById('filtro-status').value
@@ -397,6 +396,8 @@
     }
 
     async function gestorIniciarTarefa(idTarefa, nomeTarefa, usaQrcodeCarga) {
+      Auth.marcarAtividade();
+
       if (usaQrcodeCarga) {
         sessionStorage.setItem('tarefa_carregamento', JSON.stringify({
           id_tarefa: idTarefa,
@@ -465,6 +466,7 @@
         return;
       }
 
+      Auth.marcarAtividade();
       Tarefas.pararCronometro();
       Carregamento.pararMonitoramento();
 
