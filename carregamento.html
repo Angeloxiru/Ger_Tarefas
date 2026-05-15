@@ -204,6 +204,9 @@
         return;
       }
       tarefaCarregamento = JSON.parse(tarefaStr);
+
+      // Enquanto estiver na tela de carregamento, manter o timer de atividade atualizado
+      setInterval(() => Auth.marcarAtividade(), 60000);
     }
 
     // Iniciar scan da doca

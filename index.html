@@ -78,6 +78,12 @@
       window.location.href = func.perfil === 'gestor' ? 'gestor.html' : 'painel.html';
     }
 
+    if (new URLSearchParams(window.location.search).get('motivo') === 'inatividade') {
+      const el = document.getElementById('login-msg');
+      el.textContent = 'Sessão encerrada por inatividade. Faça login novamente.';
+      el.className = 'login-msg msg-warning';
+    }
+
     let scanAtivo = false;
     let codigoSelecionado = '';
 
