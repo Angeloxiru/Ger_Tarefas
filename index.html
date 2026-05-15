@@ -68,10 +68,19 @@
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="js/config.js?v=2"></script>
-  <script src="js/api.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/scanner.js"></script>
+  <script src="js/config.js?v=5"></script>
+  <script>
+    // Guard de versao: detecta novo deploy e recarrega uma vez
+    (function() {
+      var stored = localStorage.getItem('app_version');
+      var current = CONFIG.APP_VERSION;
+      localStorage.setItem('app_version', current);
+      if (stored && stored !== current) location.reload();
+    })();
+  </script>
+  <script src="js/api.js?v=5"></script>
+  <script src="js/auth.js?v=5"></script>
+  <script src="js/scanner.js?v=5"></script>
   <script>
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
@@ -208,6 +217,9 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./service-worker.js')
         .catch(err => console.warn('SW:', err));
+      navigator.serviceWorker.addEventListener('message', event => {
+        if (event.data && event.data.type === 'SW_UPDATED') location.reload();
+      });
     }
   </script>
 </body>
