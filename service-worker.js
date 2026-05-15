@@ -1,7 +1,8 @@
 // service-worker.js - PWA Service Worker
 // Estrategia: cache-first para assets estaticos, network-only para API GAS
 
-const CACHE_NAME = 'ger-tarefas-v4';
+// Bumpar junto com CONFIG.APP_VERSION em config.js a cada deploy
+const CACHE_NAME = 'ger-tarefas-v5';
 
 const ASSETS_ESTATICOS = [
   './',
@@ -42,6 +43,8 @@ self.addEventListener('activate', event => {
           .map(chave => caches.delete(chave))
       ))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then(clients => clients.forEach(c => c.postMessage({ type: 'SW_UPDATED' })))
   );
 });
 
