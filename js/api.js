@@ -5,11 +5,13 @@ const API = {
 
   // GET com timeout customizado (para login: fail-fast)
   async getComTimeout(params, timeoutMs, maxTentativas) {
+    const tMs = timeoutMs || CONFIG.LOGIN_REQUEST_TIMEOUT || 5000;
+    const max = maxTentativas || CONFIG.LOGIN_MAX_TENTATIVAS || 2;
     const query = Object.entries(params)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&');
     const url = `${CONFIG.API_URL}?${query}`;
-    return await this._executarComTimeout(() => this._fetchGet(url, timeoutMs), url, null, timeoutMs, maxTentativas);
+    return await this._executarComTimeout(() => this._fetchGet(url, tMs), url, null, tMs, max);
   },
 
   // GET com retry automatico
@@ -54,7 +56,7 @@ const API = {
 
   // Executar com timeout customizado (login: fail-fast)
   async _executarComTimeout(fn, urlGet, dadosPost, timeoutMs, maxTentativas) {
-    const max = maxTentativas || CONFIG.LOGIN_MAX_TENTATIVAS;
+    const max = maxTentativas || CONFIG.LOGIN_MAX_TENTATIVAS || 2;
 
     for (let t = 1; t <= max; t++) {
       if (t > 1) {
