@@ -73,7 +73,7 @@
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="js/config.js?v=5"></script>
+  <script src="js/config.js?v=6"></script>
   <script>
     // Guard de versao: detecta novo deploy e recarrega uma vez
     (function() {
@@ -83,9 +83,9 @@
       if (stored && stored !== current) location.reload();
     })();
   </script>
-  <script src="js/api.js?v=5"></script>
-  <script src="js/auth.js?v=5"></script>
-  <script src="js/scanner.js?v=5"></script>
+  <script src="js/api.js?v=6"></script>
+  <script src="js/auth.js?v=6"></script>
+  <script src="js/scanner.js?v=6"></script>
   <script>
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
@@ -172,23 +172,28 @@
       document.getElementById('loading').classList.add('visivel');
       document.getElementById('error-actions').classList.add('hidden');
 
-      const resultado = await API.getComTimeout(
-        { acao: 'verificar_cracha', codigo },
-        CONFIG.LOGIN_REQUEST_TIMEOUT,
-        CONFIG.LOGIN_MAX_TENTATIVAS
-      );
+      let resultado;
+      try {
+        resultado = await API.getComTimeout(
+          { acao: 'verificar_cracha', codigo },
+          CONFIG.LOGIN_REQUEST_TIMEOUT,
+          CONFIG.LOGIN_MAX_TENTATIVAS
+        );
+      } catch (e) {
+        resultado = { sucesso: false, mensagem: 'Erro ao verificar. Tente novamente.' };
+      } finally {
+        document.getElementById('loading').classList.remove('visivel');
+      }
 
-      document.getElementById('loading').classList.remove('visivel');
-
-      if (!resultado.sucesso) {
-        mostrarMsg(resultado.mensagem, 'error');
+      if (!resultado || !resultado.sucesso) {
+        mostrarMsg((resultado && resultado.mensagem) || 'Sem conexão. Tente novamente.', 'error');
         document.getElementById('error-actions').classList.remove('hidden');
         return;
       }
 
       codigoSelecionado = codigo;
 
-      if (resultado.dados.requer_senha) {
+      if (resultado.dados && resultado.dados.requer_senha) {
         // Exibir etapa de senha
         document.getElementById('func-nome-exibido').textContent = resultado.dados.nome;
         document.getElementById('etapa-codigo').classList.add('hidden');
@@ -205,12 +210,18 @@
     async function fazerLoginDireto() {
       document.getElementById('loading').classList.add('visivel');
 
-      const resultado = await Auth.login(codigoSelecionado, '');
+      let resultado;
+      try {
+        resultado = await Auth.login(codigoSelecionado, '');
+      } catch (e) {
+        resultado = { sucesso: false, mensagem: 'Erro ao entrar. Tente novamente.' };
+      } finally {
+        document.getElementById('loading').classList.remove('visivel');
+      }
 
-      document.getElementById('loading').classList.remove('visivel');
-
-      if (!resultado.sucesso) {
-        mostrarMsg(resultado.mensagem, 'error');
+      if (!resultado || !resultado.sucesso) {
+        mostrarMsg((resultado && resultado.mensagem) || 'Sem conexão. Tente novamente.', 'error');
+        document.getElementById('error-actions').classList.remove('hidden');
       }
     }
 
@@ -225,12 +236,17 @@
       mostrarMsg('', '');
       document.getElementById('loading').classList.add('visivel');
 
-      const resultado = await Auth.login(codigoSelecionado, senha);
+      let resultado;
+      try {
+        resultado = await Auth.login(codigoSelecionado, senha);
+      } catch (e) {
+        resultado = { sucesso: false, mensagem: 'Erro ao entrar. Tente novamente.' };
+      } finally {
+        document.getElementById('loading').classList.remove('visivel');
+      }
 
-      document.getElementById('loading').classList.remove('visivel');
-
-      if (!resultado.sucesso) {
-        mostrarMsg(resultado.mensagem, 'error');
+      if (!resultado || !resultado.sucesso) {
+        mostrarMsg((resultado && resultado.mensagem) || 'Sem conexão. Tente novamente.', 'error');
         document.getElementById('error-actions').classList.remove('hidden');
       }
     }
