@@ -2,7 +2,7 @@
 // Estrategia: cache-first para assets estaticos, network-only para API GAS
 
 // Bumpar junto com CONFIG.APP_VERSION em config.js a cada deploy
-const CACHE_NAME = 'ger-tarefas-v5';
+const CACHE_NAME = 'ger-tarefas-v6';
 
 const ASSETS_ESTATICOS = [
   './',
@@ -24,11 +24,19 @@ const ASSETS_ESTATICOS = [
   './icon-512.png'
 ];
 
-// Install: pre-cache todos os assets estaticos
+// Install: pre-cache todos os assets estaticos (tolerante a falha)
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS_ESTATICOS))
+      .then(cache => {
+        return Promise.allSettled(
+          ASSETS_ESTATICOS.map(asset =>
+            fetch(asset, { cache: 'no-store' })
+              .then(r => r.ok && cache.put(asset, r))
+              .catch(() => {})
+          )
+        ).then(() => cache);
+      })
       .then(() => self.skipWaiting())
   );
 });
@@ -79,6 +87,8 @@ self.addEventListener('fetch', event => {
             if (event.request.mode === 'navigate') {
               return caches.match('./index.html');
             }
+            // Para outros tipos (estilos, scripts, etc), retornar erro generico
+            return new Response('Offline', { status: 503 });
           });
       })
   );

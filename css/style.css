@@ -793,6 +793,8 @@ body {
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
 
+.error-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
 /* Toast de reconexao automatica */
 .api-retry-toast {
   position: fixed;
