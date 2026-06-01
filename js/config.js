@@ -3,7 +3,7 @@
 
 const CONFIG = {
   // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v6',
+  APP_VERSION: 'v7',
 
   // URL do Google Apps Script publicado como Web App
   API_URL: 'https://script.google.com/macros/s/AKfycbxHi0dk9WWQWsstCv0rjngCVyt7GcIOVzktnXWWUE380qu0dW3sHFqBMK24nVDukkFr/exec',
@@ -40,4 +40,24 @@ const CONFIG = {
 
   // Max tentativas no login (menos retries para evitar travamento no login)
   LOGIN_MAX_TENTATIVAS: 2
+};
+
+// Kill-switch de atualizacao: apaga TODO o cache, desregistra o Service Worker
+// e recarrega limpo. Usado quando APP_VERSION muda, para nunca ficar preso em
+// versao antiga no PWA instalado (coletor Zebra).
+CONFIG.forcarAtualizacao = async function() {
+  try {
+    if (window.caches) {
+      const chaves = await caches.keys();
+      await Promise.all(chaves.map(c => caches.delete(c)));
+    }
+  } catch (e) {}
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+  } catch (e) {}
+  // recarrega forcando rede (ignora cache HTTP)
+  location.reload();
 };

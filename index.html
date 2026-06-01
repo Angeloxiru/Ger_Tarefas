@@ -70,22 +70,28 @@
       <button class="btn btn-primary" onclick="recarregarPagina()" style="width:auto;">Tentar de Novo</button>
       <button class="btn btn-outline" onclick="aqueceGAS()" style="width:auto;margin-left:8px;">Ativar Servidor</button>
     </div>
+
+    <div id="app-version" class="app-version"></div>
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="js/config.js?v=6"></script>
+  <script src="js/config.js?v=7"></script>
   <script>
     // Guard de versao: detecta novo deploy e recarrega uma vez
     (function() {
       var stored = localStorage.getItem('app_version');
       var current = CONFIG.APP_VERSION;
-      localStorage.setItem('app_version', current);
-      if (stored && stored !== current) location.reload();
+      if (stored && stored !== current) {
+        localStorage.setItem('app_version', current);
+        CONFIG.forcarAtualizacao();
+      } else {
+        localStorage.setItem('app_version', current);
+      }
     })();
   </script>
-  <script src="js/api.js?v=6"></script>
-  <script src="js/auth.js?v=6"></script>
-  <script src="js/scanner.js?v=6"></script>
+  <script src="js/api.js?v=7"></script>
+  <script src="js/auth.js?v=7"></script>
+  <script src="js/scanner.js?v=7"></script>
   <script>
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
@@ -100,6 +106,12 @@
 
     let scanAtivo = false;
     let codigoSelecionado = '';
+
+    // Exibir versao do app (facilita verificar se o coletor atualizou)
+    (function() {
+      var el = document.getElementById('app-version');
+      if (el) el.textContent = 'Versão ' + CONFIG.APP_VERSION;
+    })();
 
     // Aquecer o GAS na abertura (ping silencioso)
     (async function aqueceGASNaAbertura() {
@@ -288,10 +300,21 @@
     });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js')
-        .catch(err => console.warn('SW:', err));
-      navigator.serviceWorker.addEventListener('message', event => {
-        if (event.data && event.data.type === 'SW_UPDATED') location.reload();
+      var swRecarregando = false;
+      function swReload() {
+        if (swRecarregando) return;
+        swRecarregando = true;
+        location.reload();
+      }
+      navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
+        .then(function(reg) {
+          reg.update();
+          setInterval(function() { reg.update(); }, 5 * 60 * 1000);
+        })
+        .catch(function(err) { console.warn('SW:', err); });
+      navigator.serviceWorker.addEventListener('controllerchange', swReload);
+      navigator.serviceWorker.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'SW_UPDATED') swReload();
       });
     }
   </script>
