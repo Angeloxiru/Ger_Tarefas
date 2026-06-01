@@ -795,6 +795,14 @@ body {
 
 .error-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
+.app-version {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #9aa0a6;
+  letter-spacing: 0.3px;
+}
+
 /* Toast de reconexao automatica */
 .api-retry-toast {
   position: fixed;
