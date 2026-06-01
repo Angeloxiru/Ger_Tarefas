@@ -65,6 +65,11 @@
       <div class="spinner"></div>
       <p>Verificando...</p>
     </div>
+
+    <div id="error-actions" class="error-actions hidden" style="text-align:center;margin-top:12px;">
+      <button class="btn btn-primary" onclick="recarregarPagina()" style="width:auto;">Tentar de Novo</button>
+      <button class="btn btn-outline" onclick="aqueceGAS()" style="width:auto;margin-left:8px;">Ativar Servidor</button>
+    </div>
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -95,6 +100,37 @@
 
     let scanAtivo = false;
     let codigoSelecionado = '';
+
+    // Aquecer o GAS na abertura (ping silencioso)
+    (async function aqueceGASNaAbertura() {
+      try {
+        await fetch(CONFIG.API_URL + '?acao=verificar_cracha&codigo=PING', {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000)
+        }).catch(() => {});
+      } catch (e) {}
+    })();
+
+    function aqueceGAS() {
+      mostrarMsg('Ativando servidor...', 'info');
+      document.getElementById('error-actions').classList.add('hidden');
+      (async () => {
+        try {
+          await fetch(CONFIG.API_URL + '?acao=verificar_cracha&codigo=PING', {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000)
+          });
+          mostrarMsg('Servidor ativado. Tente novamente.', 'success');
+        } catch (e) {
+          mostrarMsg('Servidor indisponível. Tente em alguns segundos.', 'error');
+          document.getElementById('error-actions').classList.remove('hidden');
+        }
+      })();
+    }
+
+    function recarregarPagina() {
+      location.reload();
+    }
 
     async function iniciarScan() {
       if (scanAtivo) {
@@ -134,13 +170,19 @@
     async function verificarCrachaCodigo(codigo) {
       mostrarMsg('', '');
       document.getElementById('loading').classList.add('visivel');
+      document.getElementById('error-actions').classList.add('hidden');
 
-      const resultado = await API.get({ acao: 'verificar_cracha', codigo });
+      const resultado = await API.getComTimeout(
+        { acao: 'verificar_cracha', codigo },
+        CONFIG.LOGIN_REQUEST_TIMEOUT,
+        CONFIG.LOGIN_MAX_TENTATIVAS
+      );
 
       document.getElementById('loading').classList.remove('visivel');
 
       if (!resultado.sucesso) {
         mostrarMsg(resultado.mensagem, 'error');
+        document.getElementById('error-actions').classList.remove('hidden');
         return;
       }
 
@@ -189,10 +231,12 @@
 
       if (!resultado.sucesso) {
         mostrarMsg(resultado.mensagem, 'error');
+        document.getElementById('error-actions').classList.remove('hidden');
       }
     }
 
     function voltarCodigo() {
+      document.getElementById('error-actions').classList.add('hidden');
       codigoSelecionado = '';
       document.getElementById('etapa-senha').classList.add('hidden');
       document.getElementById('etapa-codigo').classList.remove('hidden');
@@ -212,6 +256,19 @@
 
     document.getElementById('input-senha').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') fazerLogin();
+    });
+
+    // Ao voltar da tela de bloqueio/background, forcar conexão nova (mata socket morto)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        const randomSeed = '?' + Math.random();
+        const cacheBuster = CONFIG.API_URL.includes('?') ? '&' : '?';
+        fetch(CONFIG.API_URL + cacheBuster + 'cache=' + Date.now(), {
+          method: 'GET',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(2000)
+        }).catch(() => {});
+      }
     });
 
     if ('serviceWorker' in navigator) {

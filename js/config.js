@@ -3,7 +3,7 @@
 
 const CONFIG = {
   // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v5',
+  APP_VERSION: 'v6',
 
   // URL do Google Apps Script publicado como Web App
   API_URL: 'https://script.google.com/macros/s/AKfycbxHi0dk9WWQWsstCv0rjngCVyt7GcIOVzktnXWWUE380qu0dW3sHFqBMK24nVDukkFr/exec',
@@ -26,12 +26,18 @@ const CONFIG = {
   // Tempo de inatividade (sem tarefa ativa) para logout automatico: 30 minutos
   IDLE_LOGOUT_MS: 30 * 60 * 1000,
 
-  // Timeout por tentativa HTTP (ms) — GAS cold start pode levar ate 8s
+  // Timeout por tentativa HTTP (ms)
   REQUEST_TIMEOUT: 10000,
 
   // Numero maximo de tentativas antes de desistir
   MAX_TENTATIVAS: 3,
 
   // Espera entre tentativas (ms) — dobra a cada retry: 2s, 4s
-  DELAY_RETRY_MS: 2000
+  DELAY_RETRY_MS: 2000,
+
+  // Timeout curto para primeira tentativa de login (fail-fast se servidor offline)
+  LOGIN_REQUEST_TIMEOUT: 5000,
+
+  // Max tentativas no login (menos retries para evitar travamento no login)
+  LOGIN_MAX_TENTATIVAS: 2
 };

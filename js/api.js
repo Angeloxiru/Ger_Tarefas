@@ -3,13 +3,22 @@
 
 const API = {
 
+  // GET com timeout customizado (para login: fail-fast)
+  async getComTimeout(params, timeoutMs, maxTentativas) {
+    const query = Object.entries(params)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    const url = `${CONFIG.API_URL}?${query}`;
+    return await this._executarComTimeout(() => this._fetchGet(url, timeoutMs), url, null, timeoutMs, maxTentativas);
+  },
+
   // GET com retry automatico
   async get(params) {
     const query = Object.entries(params)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&');
     const url = `${CONFIG.API_URL}?${query}`;
-    return await this._executar(() => this._fetchGet(url), url, null);
+    return await this._executar(() => this._fetchGet(url, CONFIG.REQUEST_TIMEOUT), url, null);
   },
 
   // POST com retry automatico
@@ -43,13 +52,39 @@ const API = {
     }
   },
 
+  // Executar com timeout customizado (login: fail-fast)
+  async _executarComTimeout(fn, urlGet, dadosPost, timeoutMs, maxTentativas) {
+    const max = maxTentativas || CONFIG.LOGIN_MAX_TENTATIVAS;
+
+    for (let t = 1; t <= max; t++) {
+      if (t > 1) {
+        this._mostrarToast(`Sem resposta, tentando novamente (${t}/${max})...`);
+        await this._esperar(CONFIG.DELAY_RETRY_MS * (t - 1));
+      }
+
+      try {
+        const resultado = await fn();
+        this._esconderToast();
+        return resultado;
+      } catch (e) {
+        if (t < max) continue;
+
+        this._esconderToast();
+        if (urlGet)    return await this.getFallback(urlGet);
+        if (dadosPost) return await this.postFallback(dadosPost);
+        return { sucesso: false, mensagem: 'Sem conexão. Verifique o WiFi e tente novamente.' };
+      }
+    }
+  },
+
   // Fetch GET com timeout controlado
-  async _fetchGet(url) {
+  async _fetchGet(url, timeoutMs = CONFIG.REQUEST_TIMEOUT) {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
+    const t = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const r = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
       clearTimeout(t);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return await r.json();
     } catch (e) {
       clearTimeout(t);
@@ -70,6 +105,7 @@ const API = {
         body: JSON.stringify(dados)
       });
       clearTimeout(t);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return await r.json();
     } catch (e) {
       clearTimeout(t);
