@@ -118,14 +118,9 @@ function Carregamento_workersCarga(numeroCarga) {
     return { sucesso: true, dados: { workers: [], total: 0, tem_ajudante: false } };
   }
 
-  var sheetReg = getSheet('Registros');
-  var dadosReg = sheetReg.getDataRange().getValues();
-  var headersReg = dadosReg[0];
-
-  var idxRegId = headersReg.indexOf('id_registro');
-  var idxRegDataInicio = headersReg.indexOf('data_inicio');
-  var idxRegDataFim = headersReg.indexOf('data_fim');
-  var idxRegStatus = headersReg.indexOf('status');
+  // Une historico + abertos: numa carga viva ha workers ja finalizados (no historico)
+  // e outros ainda em andamento (na aba quente)
+  var mapaRegInfo = _indexarRegistrosPorId();
 
   // Nomes via cache
   var mapaNomes = buscarMapaNomes();
@@ -136,44 +131,42 @@ function Carregamento_workersCarga(numeroCarga) {
     var rc = registrosCarga[j];
     var codFunc = String(rc.codigo_func).trim().toUpperCase();
 
-    for (var k = 1; k < dadosReg.length; k++) {
-      if (dadosReg[k][idxRegId] === rc.id_registro) {
-        var status = dadosReg[k][idxRegStatus];
-        var dataInicio = dadosReg[k][idxRegDataInicio];
-        var dataFim = dadosReg[k][idxRegDataFim];
-        var inicioMs = new Date(dataInicio).getTime();
-        var fimMs = dataFim ? new Date(dataFim).getTime() : null;
+    var info = mapaRegInfo[rc.id_registro];
+    if (!info) continue;
 
-        if (!mapaWorkers[codFunc]) {
-          mapaWorkers[codFunc] = {
-            codigo_func: rc.codigo_func,
-            nome_func: mapaNomes[codFunc] || rc.codigo_func,
-            data_inicio: formatarData(dataInicio),
-            data_fim: fimMs ? formatarData(dataFim) : null,
-            _inicioMs: inicioMs,
-            _fimMs: fimMs,
-            status: status
-          };
-        } else {
-          // Menor inicio entre todas as sessoes
-          if (inicioMs < mapaWorkers[codFunc]._inicioMs) {
-            mapaWorkers[codFunc]._inicioMs = inicioMs;
-            mapaWorkers[codFunc].data_inicio = formatarData(dataInicio);
-          }
-          // Sessao em andamento: data_fim fica nula; senao guardar o maior fim
-          if (fimMs === null) {
-            mapaWorkers[codFunc]._fimMs = null;
-            mapaWorkers[codFunc].data_fim = null;
-            mapaWorkers[codFunc].status = 'em_andamento';
-          } else if (mapaWorkers[codFunc]._fimMs !== null && fimMs > mapaWorkers[codFunc]._fimMs) {
-            mapaWorkers[codFunc]._fimMs = fimMs;
-            mapaWorkers[codFunc].data_fim = formatarData(dataFim);
-          }
-          if (status === 'finalizada' && mapaWorkers[codFunc].status !== 'em_andamento') {
-            mapaWorkers[codFunc].status = 'finalizada';
-          }
-        }
-        break;
+    var status = info.status;
+    var dataInicio = info.data_inicio;
+    var dataFim = info.data_fim;
+    var inicioMs = new Date(dataInicio).getTime();
+    var fimMs = dataFim ? new Date(dataFim).getTime() : null;
+
+    if (!mapaWorkers[codFunc]) {
+      mapaWorkers[codFunc] = {
+        codigo_func: rc.codigo_func,
+        nome_func: mapaNomes[codFunc] || rc.codigo_func,
+        data_inicio: formatarData(dataInicio),
+        data_fim: fimMs ? formatarData(dataFim) : null,
+        _inicioMs: inicioMs,
+        _fimMs: fimMs,
+        status: status
+      };
+    } else {
+      // Menor inicio entre todas as sessoes
+      if (inicioMs < mapaWorkers[codFunc]._inicioMs) {
+        mapaWorkers[codFunc]._inicioMs = inicioMs;
+        mapaWorkers[codFunc].data_inicio = formatarData(dataInicio);
+      }
+      // Sessao em andamento: data_fim fica nula; senao guardar o maior fim
+      if (fimMs === null) {
+        mapaWorkers[codFunc]._fimMs = null;
+        mapaWorkers[codFunc].data_fim = null;
+        mapaWorkers[codFunc].status = 'em_andamento';
+      } else if (mapaWorkers[codFunc]._fimMs !== null && fimMs > mapaWorkers[codFunc]._fimMs) {
+        mapaWorkers[codFunc]._fimMs = fimMs;
+        mapaWorkers[codFunc].data_fim = formatarData(dataFim);
+      }
+      if (status === 'finalizada' && mapaWorkers[codFunc].status !== 'em_andamento') {
+        mapaWorkers[codFunc].status = 'finalizada';
       }
     }
   }

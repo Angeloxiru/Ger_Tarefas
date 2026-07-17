@@ -47,7 +47,14 @@ Ger_Tarefas/
 
 ---
 
-## Google Sheets - Estrutura (7 abas)
+## Google Sheets - Estrutura (8 abas)
+
+> **Aba quente `RegistrosAbertos`:** guarda **apenas** as tarefas em andamento (poucas
+> linhas). Mesmas colunas de `Registros`. Ao finalizar ou dar timeout, a linha é **movida**
+> para `Registros` (histórico). Os caminhos de alta frequência (verificar status, iniciar,
+> painel Tempo Real e o trigger de timeout) leem só desta aba, evitando varrer o histórico
+> inteiro a cada requisição. Ver seção "Índice de tarefas abertas" abaixo.
+
 
 ### Funcionarios
 | Coluna | Tipo | Exemplo | Descricao |
@@ -291,6 +298,23 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 2. Publicar como Web App ("Qualquer pessoa" pode acessar)
 3. Copiar a URL gerada para `js/config.js` (campo `API_URL`)
 4. Configurar trigger: executar `configurarTriggerTimeout()` uma vez (cria trigger de 30 min)
+5. **Índice de tarefas abertas (uma vez):** executar `inicializarPlanilha()` para criar a
+   aba `RegistrosAbertos` (não altera abas já existentes) e, numa planilha que já tem dados,
+   executar `migrarRegistrosAbertos()` **uma única vez** para mover as tarefas que estão
+   `em_andamento` de `Registros` para `RegistrosAbertos`. É idempotente — rodar de novo não
+   duplica nada. Sem esse passo, tarefas abertas antes do deploy ficariam invisíveis para o
+   status/painel até serem migradas.
+
+#### Índice de tarefas abertas (por que existe)
+
+Antes, quase toda chamada fazia `getDataRange().getValues()` na aba `Registros` inteira —
+inclusive o simples "tenho tarefa aberta?" no login. Com o histórico crescendo (~12 mil
+linhas/mês para 50 operadores), cada requisição passava a carregar meses de dados mortos.
+Agora as tarefas em andamento vivem numa aba pequena (`RegistrosAbertos`), e o custo dos
+caminhos quentes passa a ser proporcional ao número de pessoas ativas **agora**, não ao
+tamanho do histórico. Cálculos de carga (distribuição, monitoramento em tempo real) e o
+Histórico do gestor unem as duas abas quando precisam de workers finalizados e ativos juntos.
+A API pública não muda: mesmos endpoints, mesmas respostas.
 
 ### Como fazer um deploy (procedimento padrao)
 
@@ -338,6 +362,24 @@ Depois: commite todos os arquivos alterados, faca push para `main` e aguarde 1-2
 ---
 
 ## Historico de versoes
+
+### backend — Índice de tarefas abertas (aba quente)
+**Escala: separar tarefas em andamento do histórico**
+
+- Nova aba `RegistrosAbertos` guarda apenas tarefas `em_andamento`; ao finalizar/dar timeout,
+  a linha é movida para `Registros` (histórico) via `moverParaHistorico()` (com `LockService`
+  para evitar duplicidade).
+- Caminhos de alta frequência passam a ler só a aba quente: `status_funcionario`,
+  `iniciar_tarefa`, `painel_gestor` (Tempo Real, 30s) e o trigger `verificarTimeouts` (30min).
+- Cálculos de carga (`calcularDistribuicaoVolumes`, `workers_carga`) e o Histórico do gestor
+  unem as duas abas via `_indexarRegistrosPorId()` quando precisam de workers finalizados e
+  ativos juntos.
+- Migração única: `inicializarPlanilha()` (cria a aba) + `migrarRegistrosAbertos()` (move as
+  abertas existentes). **Somente backend** — nenhum arquivo de frontend muda, a API é idêntica.
+
+**Arquivos alterados:** `apps-script/Utils.gs`, `apps-script/Tarefas.gs`, `apps-script/Gestor.gs`, `apps-script/Carregamento.gs`, `apps-script/Timeout.gs`
+
+---
 
 ### v5 — 2025-05-15
 **Validacao automatica de versao e logout por inatividade**

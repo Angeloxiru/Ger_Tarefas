@@ -12,8 +12,9 @@ function Gestor_painel(params) {
   var idxAtivo = headersFunc.indexOf('ativo');
   var idxPerfil = headersFunc.indexOf('perfil');
 
-  // Registros e Cargas sempre frescos (mudam constantemente)
-  var sheetReg = getSheet('Registros');
+  // Tarefas ativas vem da aba quente (RegistrosAbertos) — poucas linhas, leitura barata.
+  // Cargas continuam frescas (mudam constantemente).
+  var sheetReg = getSheet('RegistrosAbertos');
   var dadosReg = sheetReg.getDataRange().getValues();
   var headersReg = dadosReg[0];
 
@@ -194,6 +195,63 @@ function Gestor_historico(params) {
   var cacheDist = {};
 
   var registros = [];
+
+  // Incluir tarefas em andamento (aba quente RegistrosAbertos) — as mais recentes.
+  // Elas ficam fora da aba Registros; sem isso, o Historico nao mostraria tarefas abertas.
+  var sheetAbertas = getSheet('RegistrosAbertos');
+  var dadosAb = sheetAbertas.getDataRange().getValues();
+  var hAb = dadosAb[0];
+  var abId      = hAb.indexOf('id_registro');
+  var abCod     = hAb.indexOf('codigo_func');
+  var abNomeTar = hAb.indexOf('nome_tarefa');
+  var abIni     = hAb.indexOf('data_inicio');
+  var abStatus  = hAb.indexOf('status');
+
+  for (var a = dadosAb.length - 1; a >= 1; a--) {
+    var rowA = dadosAb[a];
+
+    if (filtroFuncionarios) {
+      var cfA = String(rowA[abCod]).trim().toUpperCase();
+      if (filtroFuncionarios.indexOf(cfA) === -1) continue;
+    }
+
+    if (dataInicio || dataFim) {
+      var dRegA = new Date(rowA[abIni]);
+      if (dataInicio && dRegA < dataInicio) continue;
+      if (dataFim && dRegA > dataFim) continue;
+    }
+
+    var cfUpperA = String(rowA[abCod]).trim().toUpperCase();
+    var registroA = {
+      id_registro: rowA[abId],
+      codigo_func: rowA[abCod],
+      nome_func: mapaNomes[cfUpperA] || rowA[abCod],
+      nome_tarefa: rowA[abNomeTar],
+      data_inicio: formatarData(rowA[abIni]),
+      data_fim: null,
+      status: rowA[abStatus],
+      finalizado_por: '',
+      numero_carga: null,
+      qtd_volumes: null,
+      volumes_proporcionais: null,
+      nome_doca: null
+    };
+
+    if (cargasPorRegistro[rowA[abId]]) {
+      var cgA = cargasPorRegistro[rowA[abId]];
+      registroA.numero_carga = cgA.numero_carga;
+      registroA.qtd_volumes = cgA.qtd_volumes;
+      if (cgA.doca) {
+        if (cacheDocas[cgA.doca] === undefined) {
+          cacheDocas[cgA.doca] = buscarNomeDoca(cgA.doca);
+        }
+        registroA.nome_doca = cacheDocas[cgA.doca];
+      }
+    }
+
+    registros.push(registroA);
+  }
+
   for (var i = dados.length - 1; i >= 1; i--) {
     var row = dados[i];
 

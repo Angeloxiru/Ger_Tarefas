@@ -3,24 +3,18 @@
 
 // Funcao principal do trigger de timeout
 function verificarTimeouts() {
-  var sheetReg = getSheet('Registros');
-  var dados = sheetReg.getDataRange().getValues();
+  // Varre apenas a aba quente (poucas linhas): so ali existem tarefas em andamento
+  var sheetAbertas = getSheet('RegistrosAbertos');
+  var dados = sheetAbertas.getDataRange().getValues();
   var headers = dados[0];
 
   var idxId = headers.indexOf('id_registro');
   var idxCodFunc = headers.indexOf('codigo_func');
   var idxIdTarefa = headers.indexOf('id_tarefa');
   var idxDataInicio = headers.indexOf('data_inicio');
-  var idxDataFim = headers.indexOf('data_fim');
-  var idxStatus = headers.indexOf('status');
-  var idxFinalizadoPor = headers.indexOf('finalizado_por');
 
-  // Sair antecipadamente se nao houver nenhum registro em andamento
-  var temAtivos = false;
-  for (var x = 1; x < dados.length; x++) {
-    if (dados[x][idxStatus] === 'em_andamento') { temAtivos = true; break; }
-  }
-  if (!temAtivos) return;
+  // Sair antecipadamente se nao houver nenhuma tarefa aberta
+  if (dados.length <= 1) return;
 
   // Tarefas via cache (10min) para buscar tempo maximo de cada tarefa
   var dadosTarefas = getSheetDataCached('Tarefas', 600);
@@ -37,34 +31,35 @@ function verificarTimeouts() {
 
   var agora = new Date();
   var agoraMs = agora.getTime();
-  var timeoutsRealizados = 0;
 
+  // 1) Coletar os ids expirados sem alterar a aba durante a leitura
+  var expirados = [];
   for (var i = 1; i < dados.length; i++) {
-    if (dados[i][idxStatus] !== 'em_andamento') continue;
-
     var dataInicio = new Date(dados[i][idxDataInicio]);
     var tempoDecorridoMin = (agoraMs - dataInicio.getTime()) / 60000;
-
-    var idTarefa = dados[i][idxIdTarefa];
-    var tempoMaximo = tempoMaximoMap[idTarefa] || timeoutPadrao;
+    var tempoMaximo = tempoMaximoMap[dados[i][idxIdTarefa]] || timeoutPadrao;
 
     if (tempoDecorridoMin >= tempoMaximo) {
-      sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
-      sheetReg.getRange(i + 1, idxStatus + 1).setValue('timeout');
-      sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('sistema');
+      expirados.push({ id: dados[i][idxId], codigo_func: dados[i][idxCodFunc] });
+    }
+  }
 
-      timeoutsRealizados++;
+  // 2) Mover cada expirado para o historico como timeout e recalcular a carga
+  var timeoutsRealizados = 0;
+  for (var e = 0; e < expirados.length; e++) {
+    var movido = moverParaHistorico(expirados[e].id, agora, 'timeout', 'sistema');
+    if (!movido) continue;
 
-      Logger.log('Timeout realizado: ' + dados[i][idxId] + ' - Func: ' + dados[i][idxCodFunc]);
+    timeoutsRealizados++;
+    Logger.log('Timeout realizado: ' + expirados[e].id + ' - Func: ' + expirados[e].codigo_func);
 
-      var carga = buscarCargaDoRegistro(dados[i][idxId]);
-      if (carga) {
-        Logger.log('Func ' + dados[i][idxCodFunc] + ' excluido da distribuicao da carga ' + carga.numero_carga + ' por timeout.');
-        // Recalcular e salvar distribuicao para os demais workers (excluindo este que deu timeout)
-        var dist = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
-        if (dist && dist.length > 0) {
-          salvarVolumesDistribuicao(carga.numero_carga, dist);
-        }
+    var carga = buscarCargaDoRegistro(expirados[e].id);
+    if (carga) {
+      Logger.log('Func ' + expirados[e].codigo_func + ' excluido da distribuicao da carga ' + carga.numero_carga + ' por timeout.');
+      // Recalcular e salvar distribuicao para os demais workers (excluindo este que deu timeout)
+      var dist = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
+      if (dist && dist.length > 0) {
+        salvarVolumesDistribuicao(carga.numero_carga, dist);
       }
     }
   }
