@@ -35,7 +35,8 @@ function Tarefas_statusFuncionario(codigoFunc) {
 
   codigoFunc = codigoFunc.trim().toUpperCase();
 
-  var sheetReg = getSheet('Registros');
+  // Le apenas a aba quente (so tarefas em andamento) — evita varrer o historico
+  var sheetReg = getSheet('RegistrosAbertos');
   var dados = sheetReg.getDataRange().getValues();
   var headers = dados[0];
 
@@ -113,7 +114,8 @@ function Tarefas_iniciar(codigoFunc, idTarefa) {
   var agora = new Date();
   var idRegistro = 'R' + Utilities.formatDate(agora, Session.getScriptTimeZone(), 'yyyyMMddHHmmss') + codigoFunc;
 
-  var sheetReg = getSheet('Registros');
+  // Nasce na aba quente; sera movida para o historico ao finalizar/dar timeout
+  var sheetReg = getSheet('RegistrosAbertos');
   sheetReg.appendRow([
     idRegistro,
     codigoFunc,
@@ -146,53 +148,53 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 
   codigoFunc = codigoFunc.trim().toUpperCase();
 
-  var sheetReg = getSheet('Registros');
+  // A tarefa em andamento vive na aba quente. Validar que existe e pertence ao funcionario.
+  var sheetReg = getSheet('RegistrosAbertos');
   var dados = sheetReg.getDataRange().getValues();
   var headers = dados[0];
 
   var idxId = headers.indexOf('id_registro');
   var idxCodFunc = headers.indexOf('codigo_func');
-  var idxDataFim = headers.indexOf('data_fim');
-  var idxStatus = headers.indexOf('status');
-  var idxFinalizadoPor = headers.indexOf('finalizado_por');
 
+  var pertence = false;
   for (var i = 1; i < dados.length; i++) {
     if (dados[i][idxId] === idRegistro &&
         String(dados[i][idxCodFunc]).trim().toUpperCase() === codigoFunc) {
-
-      if (dados[i][idxStatus] !== 'em_andamento') {
-        return { sucesso: false, mensagem: 'Esta tarefa já foi finalizada.' };
-      }
-
-      var agora = new Date();
-
-      sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
-      sheetReg.getRange(i + 1, idxStatus + 1).setValue('finalizada');
-      sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('funcionario');
-
-      var resultado = {
-        sucesso: true,
-        dados: {
-          id_registro: idRegistro,
-          data_fim: agora.toISOString(),
-          status: 'finalizada'
-        },
-        mensagem: 'Tarefa finalizada com sucesso.'
-      };
-
-      var carga = buscarCargaDoRegistro(idRegistro);
-      if (carga) {
-        var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
-        resultado.dados.distribuicao = distribuicao;
-        // Gravar volumes no Registros para que o historico leia sem recalcular
-        salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
-      }
-
-      return resultado;
+      pertence = true;
+      break;
     }
   }
+  if (!pertence) {
+    return { sucesso: false, mensagem: 'Registro não encontrado.' };
+  }
 
-  return { sucesso: false, mensagem: 'Registro não encontrado.' };
+  var agora = new Date();
+
+  // Move para o historico (aba Registros) marcando como finalizada
+  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario');
+  if (!movido) {
+    return { sucesso: false, mensagem: 'Esta tarefa já foi finalizada.' };
+  }
+
+  var resultado = {
+    sucesso: true,
+    dados: {
+      id_registro: idRegistro,
+      data_fim: agora.toISOString(),
+      status: 'finalizada'
+    },
+    mensagem: 'Tarefa finalizada com sucesso.'
+  };
+
+  var carga = buscarCargaDoRegistro(idRegistro);
+  if (carga) {
+    var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
+    resultado.dados.distribuicao = distribuicao;
+    // Gravar volumes no Registros para que o historico leia sem recalcular
+    salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
+  }
+
+  return resultado;
 }
 
 // Gravar volumes_proporcionais nas linhas de Registros de cada worker da carga.
@@ -305,14 +307,8 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
 
   if (registrosCarga.length === 0) return [];
 
-  var sheetReg = getSheet('Registros');
-  var dadosReg = sheetReg.getDataRange().getValues();
-  var headersReg = dadosReg[0];
-
-  var idxRegId = headersReg.indexOf('id_registro');
-  var idxRegDataInicio = headersReg.indexOf('data_inicio');
-  var idxRegDataFim = headersReg.indexOf('data_fim');
-  var idxRegStatus = headersReg.indexOf('status');
+  // Une historico + abertos: a carga pode ter workers finalizados e outros em andamento
+  var mapaRegInfo = _indexarRegistrosPorId();
 
   // Usar cache para nomes de funcionarios
   var mapaNomes = buscarMapaNomes();
@@ -325,45 +321,41 @@ function calcularDistribuicaoVolumes(numeroCarga, totalVolumes) {
     var rc = registrosCarga[j];
     var codFunc = String(rc.codigo_func).trim().toUpperCase();
 
-    for (var k = 1; k < dadosReg.length; k++) {
-      if (dadosReg[k][idxRegId] === rc.id_registro) {
-        var status = dadosReg[k][idxRegStatus];
+    var regInfo = mapaRegInfo[rc.id_registro];
+    if (!regInfo) continue;
 
-        if (status === 'timeout') break;
+    var status = regInfo.status;
+    if (status === 'timeout') continue;
 
-        var dataInicio = new Date(dadosReg[k][idxRegDataInicio]);
-        var dataFim = status === 'finalizada'
-          ? new Date(dadosReg[k][idxRegDataFim])
-          : agora;
-        var tempoMs = Math.max(dataFim.getTime() - dataInicio.getTime(), 60000);
+    var dataInicio = new Date(regInfo.data_inicio);
+    var dataFim = status === 'finalizada'
+      ? new Date(regInfo.data_fim)
+      : agora;
+    var tempoMs = Math.max(dataFim.getTime() - dataInicio.getTime(), 60000);
 
-        if (!mapaWorkers[codFunc]) {
-          mapaWorkers[codFunc] = {
-            codigo_func: rc.codigo_func,
-            nome_func: mapaNomes[codFunc] || rc.codigo_func,
-            tempo_ms: 0,
-            status: status,
-            data_inicio: dataInicio.toISOString(),
-            data_fim: dataFim.toISOString()
-          };
-        } else {
-          // Manter o menor inicio e maior fim para o calculo correto do ajudante
-          if (dataInicio.getTime() < new Date(mapaWorkers[codFunc].data_inicio).getTime()) {
-            mapaWorkers[codFunc].data_inicio = dataInicio.toISOString();
-          }
-          if (dataFim.getTime() > new Date(mapaWorkers[codFunc].data_fim).getTime()) {
-            mapaWorkers[codFunc].data_fim = dataFim.toISOString();
-          }
-        }
-
-        mapaWorkers[codFunc].tempo_ms += tempoMs;
-
-        if (status === 'finalizada') {
-          mapaWorkers[codFunc].status = 'finalizada';
-        }
-
-        break;
+    if (!mapaWorkers[codFunc]) {
+      mapaWorkers[codFunc] = {
+        codigo_func: rc.codigo_func,
+        nome_func: mapaNomes[codFunc] || rc.codigo_func,
+        tempo_ms: 0,
+        status: status,
+        data_inicio: dataInicio.toISOString(),
+        data_fim: dataFim.toISOString()
+      };
+    } else {
+      // Manter o menor inicio e maior fim para o calculo correto do ajudante
+      if (dataInicio.getTime() < new Date(mapaWorkers[codFunc].data_inicio).getTime()) {
+        mapaWorkers[codFunc].data_inicio = dataInicio.toISOString();
       }
+      if (dataFim.getTime() > new Date(mapaWorkers[codFunc].data_fim).getTime()) {
+        mapaWorkers[codFunc].data_fim = dataFim.toISOString();
+      }
+    }
+
+    mapaWorkers[codFunc].tempo_ms += tempoMs;
+
+    if (status === 'finalizada') {
+      mapaWorkers[codFunc].status = 'finalizada';
     }
   }
 

@@ -139,6 +139,14 @@ function inicializarPlanilha() {
     sheetReg.appendRow(['id_registro', 'codigo_func', 'id_tarefa', 'nome_tarefa', 'data_inicio', 'data_fim', 'status', 'finalizado_por']);
   }
 
+  // Aba "quente": guarda APENAS as tarefas em andamento (poucas linhas).
+  // Os caminhos de alta frequencia (status, iniciar, painel, timeout) leem so daqui,
+  // evitando varrer o historico inteiro a cada requisicao. Mesma ordem de colunas de Registros.
+  var sheetRegAbertos = criarAbaSeNecessario(ss, 'RegistrosAbertos');
+  if (sheetRegAbertos.getLastRow() === 0) {
+    sheetRegAbertos.appendRow(['id_registro', 'codigo_func', 'id_tarefa', 'nome_tarefa', 'data_inicio', 'data_fim', 'status', 'finalizado_por']);
+  }
+
   var sheetCargas = criarAbaSeNecessario(ss, 'Cargas');
   if (sheetCargas.getLastRow() === 0) {
     sheetCargas.appendRow(['id_registro', 'codigo_func', 'numero_carga', 'qtd_volumes', 'doca', 'data_leitura', 'ajudante']);
@@ -162,4 +170,122 @@ function criarAbaSeNecessario(ss, nomeAba) {
     sheet = ss.insertSheet(nomeAba);
   }
   return sheet;
+}
+
+// Indexa os registros por id_registro unindo o historico (Registros) e os abertos
+// (RegistrosAbertos). Retorna { id: { data_inicio, data_fim, status } }.
+// Necessario nos calculos de carga, que podem envolver workers ja finalizados
+// (no historico) e outros ainda em andamento (na aba quente) ao mesmo tempo.
+function _indexarRegistrosPorId() {
+  var mapa = {};
+  var fontes = ['Registros', 'RegistrosAbertos'];
+  for (var s = 0; s < fontes.length; s++) {
+    var d = getSheet(fontes[s]).getDataRange().getValues();
+    var h = d[0];
+    var iId = h.indexOf('id_registro');
+    var iIni = h.indexOf('data_inicio');
+    var iFim = h.indexOf('data_fim');
+    var iSt = h.indexOf('status');
+    for (var x = 1; x < d.length; x++) {
+      var id = d[x][iId];
+      if (id !== '' && id !== null && mapa[id] === undefined) {
+        mapa[id] = { data_inicio: d[x][iIni], data_fim: d[x][iFim], status: d[x][iSt] };
+      }
+    }
+  }
+  return mapa;
+}
+
+// Mover um registro da aba quente (RegistrosAbertos) para o historico (Registros),
+// finalizando-o. Centraliza o encerramento usado por finalizar_tarefa e pelo timeout.
+// Usa lock para evitar que dois processos movam a mesma linha (duplicidade).
+// Grava primeiro no historico e so entao remove da aba de abertas: se algo falhar
+// no meio, o pior caso e uma duplicata recuperavel, nunca perda do registro.
+// Retorna os dados basicos do registro movido, ou null se ele nao existir mais em aberto.
+function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor) {
+  var lock = LockService.getScriptLock();
+  var temLock = false;
+  try { lock.waitLock(20000); temLock = true; } catch (e) {}
+
+  try {
+    var sheetAbertas = getSheet('RegistrosAbertos');
+    var dadosAb = sheetAbertas.getDataRange().getValues();
+    var hAb = dadosAb[0];
+    var abId = hAb.indexOf('id_registro');
+
+    var linhaAb = -1;
+    for (var i = 1; i < dadosAb.length; i++) {
+      if (dadosAb[i][abId] === idRegistro) { linhaAb = i; break; }
+    }
+    if (linhaAb === -1) return null;
+
+    var rowAb = dadosAb[linhaAb];
+
+    // Montar a linha do historico respeitando a ordem de colunas da aba Registros
+    var sheetReg = getSheet('Registros');
+    var hReg = sheetReg.getRange(1, 1, 1, sheetReg.getLastColumn()).getValues()[0];
+
+    var novaLinha = [];
+    for (var c = 0; c < hReg.length; c++) {
+      var nomeCol = hReg[c];
+      if (nomeCol === 'data_fim') {
+        novaLinha.push(dataFim);
+      } else if (nomeCol === 'status') {
+        novaLinha.push(status);
+      } else if (nomeCol === 'finalizado_por') {
+        novaLinha.push(finalizadoPor);
+      } else {
+        var idxOrigem = hAb.indexOf(nomeCol);
+        novaLinha.push(idxOrigem >= 0 ? rowAb[idxOrigem] : '');
+      }
+    }
+
+    sheetReg.appendRow(novaLinha);
+    sheetAbertas.deleteRow(linhaAb + 1);
+
+    return {
+      id_registro: idRegistro,
+      codigo_func: rowAb[hAb.indexOf('codigo_func')],
+      id_tarefa: rowAb[hAb.indexOf('id_tarefa')],
+      nome_tarefa: rowAb[hAb.indexOf('nome_tarefa')],
+      data_inicio: formatarData(rowAb[hAb.indexOf('data_inicio')])
+    };
+  } finally {
+    if (temLock) { try { lock.releaseLock(); } catch (e) {} }
+  }
+}
+
+// Migracao unica: mover as tarefas em andamento que ja existem na aba Registros
+// para a aba RegistrosAbertos. Executar UMA vez, apos criar a aba (inicializarPlanilha),
+// ao migrar uma planilha existente para esta versao. Idempotente: rodar de novo nao duplica
+// (nao havera mais linhas em_andamento em Registros depois da primeira execucao).
+function migrarRegistrosAbertos() {
+  var sheetReg = getSheet('Registros');
+  var dados = sheetReg.getDataRange().getValues();
+  var h = dados[0];
+  var idxStatus = h.indexOf('status');
+
+  var sheetAbertas = getSheet('RegistrosAbertos');
+  var hAb = sheetAbertas.getRange(1, 1, 1, sheetAbertas.getLastColumn()).getValues()[0];
+
+  var linhasParaRemover = [];
+  var movidos = 0;
+  for (var i = 1; i < dados.length; i++) {
+    if (dados[i][idxStatus] === 'em_andamento') {
+      var novaLinha = [];
+      for (var c = 0; c < hAb.length; c++) {
+        var idxOrigem = h.indexOf(hAb[c]);
+        novaLinha.push(idxOrigem >= 0 ? dados[i][idxOrigem] : '');
+      }
+      sheetAbertas.appendRow(novaLinha);
+      linhasParaRemover.push(i + 1);
+      movidos++;
+    }
+  }
+  // Remover de baixo pra cima para nao baguncar os indices
+  for (var r = linhasParaRemover.length - 1; r >= 0; r--) {
+    sheetReg.deleteRow(linhasParaRemover[r]);
+  }
+  Logger.log('Migracao concluida: ' + movidos + ' registro(s) em andamento movido(s) para RegistrosAbertos.');
+  return movidos;
 }
