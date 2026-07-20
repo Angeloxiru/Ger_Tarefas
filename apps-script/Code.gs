@@ -6,7 +6,7 @@ var SPREADSHEET_ID = '1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y';
 
 // Versao do backend. Bumpe a cada mudanca no Apps Script publicada.
 // Consulte com: <API_URL>?acao=versao — mostra qual codigo o /exec esta executando.
-var BACKEND_VERSION = 'abertas-1';
+var BACKEND_VERSION = 'abertas-2';
 
 function doGet(e) {
   var acao = e.parameter.acao;
@@ -17,7 +17,20 @@ function doGet(e) {
       case 'versao':
         // Diagnostico: confirma qual codigo a implantacao (/exec) esta servindo.
         // Se retornar "Ação desconhecida", a implantacao esta rodando codigo antigo.
-        resultado = { sucesso: true, dados: { versao_backend: BACKEND_VERSION } };
+        // Alem da versao, inspeciona (via Function.toString) qual DEFINICAO das funcoes
+        // criticas esta ativa — pega o caso de funcao duplicada em arquivo antigo que
+        // sobrescreve a nova (doGet novo convivendo com Tarefas_iniciar antigo).
+        var diag = { versao_backend: BACKEND_VERSION };
+        try {
+          diag.iniciar_grava_em = (Tarefas_iniciar.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
+        } catch (er1) { diag.iniciar_grava_em = 'ERRO: ' + er1.message; }
+        try {
+          diag.finalizar_le_de = (Tarefas_finalizar.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
+        } catch (er2) { diag.finalizar_le_de = 'ERRO: ' + er2.message; }
+        try {
+          diag.status_le_de = (Tarefas_statusFuncionario.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
+        } catch (er3) { diag.status_le_de = 'ERRO: ' + er3.message; }
+        resultado = { sucesso: true, dados: diag };
         break;
 
       case 'verificar_cracha':
