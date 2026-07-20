@@ -291,7 +291,7 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 ### Google Sheets
 - **ID da planilha**: `1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y`
 - [Link da planilha](https://docs.google.com/spreadsheets/d/1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y/edit?usp=sharing)
-- 7 abas: Funcionarios, Tarefas, Registros, Cargas, Docas, Alertas, Config
+- 8 abas: Funcionarios, Tarefas, Registros, **RegistrosAbertos**, Cargas, Docas, Alertas, Config
 
 ### Google Apps Script
 1. Copiar todos os arquivos `.gs` da pasta `apps-script/` para o projeto
@@ -331,26 +331,69 @@ A API pública não muda: mesmos endpoints, mesmas respostas.
 
 ### Como fazer um deploy (procedimento padrao)
 
-A cada novo deploy, bumpe **3 numeros** nos arquivos abaixo. O restante e automatico.
+Existem **dois** deploys independentes. Saber qual você está fazendo evita 90% dos erros.
+
+#### A) Deploy de BACKEND (mudou algum `.gs`)
+1. Copie os `.gs` alterados para o projeto Apps Script.
+2. **Bumpe `BACKEND_VERSION`** no topo de `Code.gs` (ex.: `abertas-2` → `abertas-3`).
+3. **Republique na MESMA implantação** (ver regra de ouro abaixo): Implantar → Gerenciar
+   implantações → Editar (lápis) → Versão: **Nova versão** → Implantar.
+4. **Verifique:** abra `<API_URL>?acao=versao` no navegador e confirme que voltou o número
+   novo. Se voltou o antigo, a implantação não pegou — **não avance** enquanto não bater.
+
+#### B) Deploy de FRONTEND (mudou HTML/CSS/JS)
+A cada deploy de frontend, bumpe **3 números**. O resto é automático.
 
 | Arquivo | Campo | Exemplo |
 |---------|-------|---------|
-| `js/config.js` | `APP_VERSION` | `'v5'` → `'v6'` |
-| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v5'` → `'ger-tarefas-v6'` |
-| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=5` → `?v=6` |
+| `js/config.js` | `APP_VERSION` | `'v7'` → `'v8'` |
+| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v7'` → `'ger-tarefas-v8'` |
+| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=7` → `?v=8` |
 
-Depois: commite todos os arquivos alterados, faca push para `main` e aguarde 1-2 minutos para o GitHub Pages processar.
+Depois: commite, faça push para `main` e aguarde 1-2 min para o GitHub Pages processar. O
+browser detecta o novo `service-worker.js`, ativa (`skipWaiting`), apaga o cache antigo,
+notifica as abas (`SW_UPDATED`) e recarrega. O guard de versão no `localStorage` cobre
+browsers sem PWA. **Como conferir num coletor:** a tela de login mostra `Versão vX` — tem que
+exibir o número novo. Se mostrar o antigo, aquele aparelho não atualizou.
 
-**O que acontece automaticamente apos o deploy:**
-1. O browser detecta o novo `service-worker.js` e instala a versao nova
-2. O Service Worker ativa imediatamente (`skipWaiting`) e apaga o cache antigo
-3. Todas as abas abertas recebem uma notificacao `SW_UPDATED` e recarregam sozinhas
-4. O guard de versao no `localStorage` garante a atualizacao mesmo em browsers sem PWA
+---
 
-**Se precisar trocar a URL do GAS (novo deploy do Apps Script):**
-1. Atualize `API_URL` em `js/config.js`
-2. Siga o procedimento de deploy normal acima (bumpando as versoes)
-3. Faca o deploy — o CDN do GitHub Pages servira a versao nova em poucos minutos
+### ⚠️ REGRA DE OURO do Apps Script — leia sempre
+
+**NUNCA crie uma implantação NOVA a cada deploy. Sempre atualize a MESMA, mantendo a URL fixa.**
+
+Por quê: cada implantação nova gera uma **URL diferente**, e as URLs antigas **continuam vivas
+rodando o código que estava nelas**. Se você troca a URL no `config.js`, os coletores com o
+`config.js` **em cache** continuam chamando a URL antiga — ou seja, um **servidor velho** — e o
+app se comporta como código antigo mesmo com o backend novo publicado. Foi exatamente isso que
+causou o incidente das "tarefas nascendo na aba `Registros`": o backend estava certo, mas os
+coletores falavam com uma implantação antiga via `config.js` cacheado.
+
+Consequências práticas:
+- **Mantenha uma única implantação** (Web App) e sempre a atualize por *Nova versão*. A URL
+  `.../exec` não muda, então o `config.js` nunca precisa mudar e cache velho continua correto.
+- **Só troque `API_URL` em último caso.** Se trocar, é **obrigatório** bumpar a versão de
+  FRONTEND (item B) no mesmo deploy, para o kill-switch limpar o cache e os coletores baixarem
+  a URL nova. Sem isso, aparelhos ficam presos na URL antiga.
+
+---
+
+### Troubleshooting — "as tarefas nascem na aba errada / comportamento de código antigo"
+
+Siga nesta ordem; cada passo isola uma camada:
+
+1. **O `/exec` roda o código novo?** Abra `<API_URL>?acao=versao`.
+   - `versao_backend` é o esperado **e** `iniciar_grava_em: "RegistrosAbertos (novo)"` → o
+     backend está OK, o problema é no frontend/cache → vá ao passo 2.
+   - `versao_backend` antigo, ou `iniciar_grava_em: "Registros (ANTIGO)"` → a implantação está
+     velha ou há função duplicada num `.gs` antigo. Republique (Nova versão) e/ou remova o
+     arquivo duplicado; confirme que `function Tarefas_iniciar` existe em **um só** arquivo.
+2. **O coletor está no frontend novo?** Veja `Versão vX` na tela de login do aparelho. Se
+   estiver antiga, o `config.js` (e talvez a `API_URL`) está em cache velho. Bumpe a versão de
+   frontend (item B), faça merge na `main` e reabra o app; se persistir, limpe os dados do app.
+3. **A aba `RegistrosAbertos` está consistente?** Rode `verificarConsistencia()` no editor:
+   deve logar `0 em_andamento presos em Registros`. Se houver linhas presas (ex.: criadas
+   enquanto rodava código antigo), rode `migrarRegistrosAbertos()` para movê-las.
 
 ### GitHub Pages
 - Fazer merge para `main` -> deploy automatico
@@ -376,21 +419,43 @@ Depois: commite todos os arquivos alterados, faca push para `main` e aguarde 1-2
 
 ## Historico de versoes
 
-### backend — Índice de tarefas abertas (aba quente)
-**Escala: separar tarefas em andamento do histórico**
+### v8 — Índice de tarefas abertas + diagnóstico de deploy
 
+**1. Escala — separar tarefas em andamento do histórico (backend)**
 - Nova aba `RegistrosAbertos` guarda apenas tarefas `em_andamento`; ao finalizar/dar timeout,
   a linha é movida para `Registros` (histórico) via `moverParaHistorico()` (com `LockService`
-  para evitar duplicidade).
+  para evitar duplicidade; grava no histórico antes de remover da aba quente).
 - Caminhos de alta frequência passam a ler só a aba quente: `status_funcionario`,
   `iniciar_tarefa`, `painel_gestor` (Tempo Real, 30s) e o trigger `verificarTimeouts` (30min).
+  O custo passa a ser proporcional ao nº de pessoas ativas agora, não ao tamanho do histórico.
 - Cálculos de carga (`calcularDistribuicaoVolumes`, `workers_carga`) e o Histórico do gestor
-  unem as duas abas via `_indexarRegistrosPorId()` quando precisam de workers finalizados e
-  ativos juntos.
-- Migração única: `inicializarPlanilha()` (cria a aba) + `migrarRegistrosAbertos()` (move as
-  abertas existentes). **Somente backend** — nenhum arquivo de frontend muda, a API é idêntica.
+  unem as duas abas via `_indexarRegistrosPorId()` (workers finalizados + ativos na mesma carga).
+- Migração única: `inicializarPlanilha()` cria a aba; `migrarRegistrosAbertos()` move as
+  abertas existentes (idempotente). A API pública não muda: mesmos endpoints e respostas.
 
-**Arquivos alterados:** `apps-script/Utils.gs`, `apps-script/Tarefas.gs`, `apps-script/Gestor.gs`, `apps-script/Carregamento.gs`, `apps-script/Timeout.gs`
+**2. Diagnóstico e disciplina de versão (backend)**
+- `BACKEND_VERSION` no topo de `Code.gs` + endpoint `?acao=versao`: mostra qual código o
+  `/exec` executa. Além da versão, inspeciona via `Function.toString()` qual **definição** de
+  `Tarefas_iniciar`/`finalizar`/`statusFuncionario` está ativa — pega função duplicada em `.gs`
+  antigo que sobrescreve a nova.
+- `verificarConsistencia()` (rodar no editor): conta quantas `em_andamento` ainda estão presas
+  em `Registros` e quantas há em `RegistrosAbertos`.
+
+**3. Cache dos coletores (frontend)**
+- Bump `v7` → `v8` (`APP_VERSION`, `CACHE_NAME`, `?v=` dos scripts) para forçar os coletores a
+  descartar o `config.js` em cache — necessário porque o histórico da `API_URL` mostrava uma
+  URL nova por deploy, e cache velho apontava para implantações antigas com código velho.
+
+**4. Documentação**
+- README: separação de deploy backend × frontend, **regra de ouro** (nunca criar implantação
+  nova — sempre atualizar a mesma, URL fixa) e guia de troubleshooting da "aba errada".
+
+**Arquivos alterados:** `apps-script/Code.gs`, `apps-script/Utils.gs`, `apps-script/Tarefas.gs`, `apps-script/Gestor.gs`, `apps-script/Carregamento.gs`, `apps-script/Timeout.gs`, `js/config.js`, `service-worker.js`, `index.html`, `painel.html`, `gestor.html`, `carregamento.html`, `README.md`
+
+**Passos de deploy desta versão (numa janela sem ninguém logado):**
+1. Backend: copiar os `.gs`, republicar na mesma implantação (Nova versão), conferir `?acao=versao`.
+2. Planilha: `inicializarPlanilha()` → `migrarRegistrosAbertos()` → `verificarConsistencia()`.
+3. Frontend: merge na `main`; conferir `Versão v8` na tela de login dos coletores.
 
 ---
 
