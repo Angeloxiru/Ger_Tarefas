@@ -289,3 +289,26 @@ function migrarRegistrosAbertos() {
   Logger.log('Migracao concluida: ' + movidos + ' registro(s) em andamento movido(s) para RegistrosAbertos.');
   return movidos;
 }
+
+// Diagnostico de consistencia (rodar no editor). Reporta:
+// - quantas linhas em_andamento AINDA estao na aba Registros (deveria ser 0 no modelo novo)
+// - quantas linhas existem em RegistrosAbertos
+// Se houver em_andamento em Registros, rode migrarRegistrosAbertos() para mover.
+function verificarConsistencia() {
+  var dadosReg = getSheet('Registros').getDataRange().getValues();
+  var hReg = dadosReg[0];
+  var idxStatusReg = hReg.indexOf('status');
+  var emAndamentoNoHistorico = 0;
+  for (var i = 1; i < dadosReg.length; i++) {
+    if (dadosReg[i][idxStatusReg] === 'em_andamento') emAndamentoNoHistorico++;
+  }
+
+  var abertas = getSheet('RegistrosAbertos').getLastRow() - 1; // menos o cabecalho
+  if (abertas < 0) abertas = 0;
+
+  var msg = 'Consistencia: ' + emAndamentoNoHistorico + ' em_andamento presos em Registros | ' +
+            abertas + ' linha(s) em RegistrosAbertos.' +
+            (emAndamentoNoHistorico > 0 ? ' >> Rode migrarRegistrosAbertos() para corrigir.' : ' >> OK.');
+  Logger.log(msg);
+  return { em_andamento_em_registros: emAndamentoNoHistorico, linhas_em_abertos: abertas };
+}
