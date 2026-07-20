@@ -298,6 +298,19 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 2. Publicar como Web App ("Qualquer pessoa" pode acessar)
 3. Copiar a URL gerada para `js/config.js` (campo `API_URL`)
 4. Configurar trigger: executar `configurarTriggerTimeout()` uma vez (cria trigger de 30 min)
+
+> **Versão do backend — leia antes de republicar.** O Apps Script tem seu próprio
+> marcador: `BACKEND_VERSION` no topo de `Code.gs`. **A cada mudança nos `.gs`, bumpe esse
+> valor** (ex.: `abertas-1` → `abertas-2`). Depois de republicar, o **último passo** é abrir
+> no navegador `<API_URL>?acao=versao` e confirmar que voltou o número novo. Se voltar o
+> número antigo, a implantação **não** está servindo o código novo — provavelmente o
+> `config.js` aponta para uma implantação diferente da que você editou (confira que a URL da
+> implantação ativa é idêntica ao `API_URL`). Sem esse check, é impossível saber qual código
+> o `/exec` executa — foi o que causou o incidente das tarefas nascendo na aba errada.
+>
+> Atenção: republicar o `.gs` **não** troca automaticamente o que o `/exec` executa. É preciso
+> **Implantar → Gerenciar implantações → Editar (lápis) → Versão: Nova versão → Implantar**,
+> na mesma implantação cuja URL está no `config.js` (isso mantém a URL).
 5. **Índice de tarefas abertas (uma vez):** executar `inicializarPlanilha()` para criar a
    aba `RegistrosAbertos` (não altera abas já existentes) e, numa planilha que já tem dados,
    executar `migrarRegistrosAbertos()` **uma única vez** para mover as tarefas que estão
