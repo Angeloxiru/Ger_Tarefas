@@ -4,12 +4,22 @@
 // ID da planilha Google Sheets
 var SPREADSHEET_ID = '1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y';
 
+// Versao do backend. Bumpe a cada mudanca no Apps Script publicada.
+// Consulte com: <API_URL>?acao=versao — mostra qual codigo o /exec esta executando.
+var BACKEND_VERSION = 'abertas-1';
+
 function doGet(e) {
   var acao = e.parameter.acao;
   var resultado;
 
   try {
     switch (acao) {
+      case 'versao':
+        // Diagnostico: confirma qual codigo a implantacao (/exec) esta servindo.
+        // Se retornar "Ação desconhecida", a implantacao esta rodando codigo antigo.
+        resultado = { sucesso: true, dados: { versao_backend: BACKEND_VERSION } };
+        break;
+
       case 'verificar_cracha':
         resultado = Auth_verificarCracha(e.parameter.codigo);
         break;
