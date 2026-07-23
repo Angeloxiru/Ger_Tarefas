@@ -6,7 +6,7 @@ var SPREADSHEET_ID = '1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y';
 
 // Versao do backend. Bumpe a cada mudanca no Apps Script publicada.
 // Consulte com: <API_URL>?acao=versao — mostra qual codigo o /exec esta executando.
-var BACKEND_VERSION = 'abertas-3';
+var BACKEND_VERSION = 'abertas-4';
 
 function doGet(e) {
   var acao = e.parameter.acao;

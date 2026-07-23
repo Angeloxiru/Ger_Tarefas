@@ -154,7 +154,7 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
   // a linha existir E pertencer a este funcionario (checagem dentro da funcao).
   var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario', codigoFunc);
   if (movido) {
-    return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true);
+    return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, movido.linha_historico);
   }
 
   // Nao estava (mais) na aba quente. Duas situacoes legitimas caem aqui:
@@ -182,11 +182,11 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
         sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
         sheetReg.getRange(i + 1, idxStatus + 1).setValue('finalizada');
         sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('funcionario');
-        return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true);
+        return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, i + 1);
       }
 
       // (a) ja finalizada/timeout: retorna sucesso (idempotente), sem regravar volumes
-      return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), dados[i][idxStatus], false);
+      return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), dados[i][idxStatus], false, codigoFunc, i + 1);
     }
   }
 
@@ -194,22 +194,44 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 }
 
 // Monta o resultado de uma finalizacao bem-sucedida, anexando a distribuicao da
-// carga (se houver). recalcular=true tambem grava os volumes no historico.
-function montarResultadoFinalizacao(idRegistro, dataFimIso, status, recalcular) {
+// carga (se houver). recalcular=true grava os volumes no historico.
+// linhaRegistros = linha do registro na aba Registros (para o atalho gravar direto).
+function montarResultadoFinalizacao(idRegistro, dataFimIso, status, recalcular, codigoFunc, linhaRegistros) {
   var resultado = {
     sucesso: true,
     dados: { id_registro: idRegistro, data_fim: dataFimIso, status: status },
     mensagem: 'Tarefa finalizada com sucesso.'
   };
 
-  var carga = buscarCargaDoRegistro(idRegistro);
-  if (carga) {
-    var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
-    resultado.dados.distribuicao = distribuicao;
-    if (recalcular) {
-      // Gravar volumes no Registros para que o historico leia sem recalcular
-      salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
+  // Contexto da carga numa unica leitura da aba Cargas
+  var ctx = contextoCargaDoRegistro(idRegistro);
+  if (!ctx) return resultado; // tarefa sem carga (ex.: Limpeza)
+
+  // ATALHO — carga de um unico trabalhador, sem ajudante: leva 100% dos volumes.
+  // Evita calcularDistribuicaoVolumes (le as duas abas cheias) e salvarVolumesDistribuicao;
+  // grava direto 1 celula na linha do registro. Cobre o caso mais comum.
+  if (ctx.total_workers === 1 && !ctx.tem_ajudante) {
+    if (recalcular && linhaRegistros) {
+      gravarVolumeProporcional(linhaRegistros, ctx.qtd_volumes);
     }
+    var codUp = String(codigoFunc).trim().toUpperCase();
+    var mapaNomes = buscarMapaNomes();
+    resultado.dados.distribuicao = [{
+      codigo_func: codigoFunc,
+      nome_func: mapaNomes[codUp] || codigoFunc,
+      volumes_proporcionais: ctx.qtd_volumes,
+      percentual: '100.0',
+      status: 'finalizada'
+    }];
+    return resultado;
+  }
+
+  // Carga compartilhada (ou com ajudante): distribuicao proporcional completa.
+  var distribuicao = calcularDistribuicaoVolumes(ctx.numero_carga, ctx.qtd_volumes);
+  resultado.dados.distribuicao = distribuicao;
+  if (recalcular) {
+    // Gravar volumes no Registros para que o historico leia sem recalcular
+    salvarVolumesDistribuicao(ctx.numero_carga, distribuicao);
   }
 
   return resultado;
@@ -257,15 +279,22 @@ function salvarVolumesDistribuicao(numeroCarga, distribuicao) {
     sheetReg.getRange(1, idxVolCol + 1).setValue('volumes_proporcionais');
   }
 
-  // Atualizar cada linha cujo id_registro pertence a esta carga
-  for (var r = 1; r < dadosReg.length; r++) {
-    var idReg = dadosReg[r][idxRegId];
-    if (idRegParaFunc[idReg] !== undefined) {
+  // Atualizar a coluna volumes_proporcionais em LOTE: monta a coluna inteira e
+  // grava de uma vez (1 setValues) em vez de uma escrita por worker.
+  var totalLinhas = dadosReg.length - 1;
+  if (totalLinhas > 0) {
+    var coluna = [];
+    for (var r = 1; r < dadosReg.length; r++) {
+      var idReg = dadosReg[r][idxRegId];
       var funcUpper = idRegParaFunc[idReg];
-      if (mapaVolumes[funcUpper] !== undefined) {
-        sheetReg.getRange(r + 1, idxVolCol + 1).setValue(mapaVolumes[funcUpper]);
+      if (funcUpper !== undefined && mapaVolumes[funcUpper] !== undefined) {
+        coluna.push([mapaVolumes[funcUpper]]);
+      } else {
+        // preserva o valor atual (ou vazio se a coluna acabou de ser criada)
+        coluna.push([idxVolCol < dadosReg[r].length ? dadosReg[r][idxVolCol] : '']);
       }
     }
+    sheetReg.getRange(2, idxVolCol + 1, totalLinhas, 1).setValues(coluna);
   }
 }
 

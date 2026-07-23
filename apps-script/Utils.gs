@@ -172,6 +172,62 @@ function criarAbaSeNecessario(ss, nomeAba) {
   return sheet;
 }
 
+// Contexto da carga de um registro em UMA leitura da aba Cargas.
+// Retorna a carga do registro + quantos trabalhadores/ajudante ha na mesma carga
+// (para o finalizar decidir entre atalho de 1 worker e distribuicao completa).
+// Retorna null se o registro nao tiver carga (tarefa comum, ex.: Limpeza).
+function contextoCargaDoRegistro(idRegistro) {
+  var dados = getSheet('Cargas').getDataRange().getValues();
+  var h = dados[0];
+  var iIdReg = h.indexOf('id_registro');
+  var iNum   = h.indexOf('numero_carga');
+  var iQtd   = h.indexOf('qtd_volumes');
+  var iDoca  = h.indexOf('doca');
+  var iAju   = h.indexOf('ajudante');
+
+  var numero = null, qtd = null, doca = '';
+  for (var i = 1; i < dados.length; i++) {
+    if (dados[i][iIdReg] === idRegistro) {
+      numero = dados[i][iNum];
+      qtd = dados[i][iQtd];
+      doca = iDoca >= 0 ? dados[i][iDoca] : '';
+      break;
+    }
+  }
+  if (numero === null) return null;
+
+  var totalWorkers = 0, temAjudante = false;
+  for (var j = 1; j < dados.length; j++) {
+    if (dados[j][iNum] === numero) {
+      totalWorkers++;
+      if (iAju >= 0 && dados[j][iAju] === true) temAjudante = true;
+    }
+  }
+
+  return {
+    numero_carga: numero,
+    qtd_volumes: qtd,
+    doca: doca,
+    nome_doca: buscarNomeDoca(doca),
+    total_workers: totalWorkers,
+    tem_ajudante: temAjudante
+  };
+}
+
+// Grava um valor de volumes_proporcionais numa linha especifica da aba Registros,
+// criando a coluna se necessario. Usado pelo atalho de carga com 1 trabalhador
+// (evita reler a aba inteira so para escrever 1 celula).
+function gravarVolumeProporcional(linhaRegistros, volume) {
+  var sheetReg = getSheet('Registros');
+  var header = sheetReg.getRange(1, 1, 1, sheetReg.getLastColumn()).getValues()[0];
+  var idxVolCol = header.indexOf('volumes_proporcionais');
+  if (idxVolCol === -1) {
+    idxVolCol = header.length; // 0-based: proxima coluna livre
+    sheetReg.getRange(1, idxVolCol + 1).setValue('volumes_proporcionais');
+  }
+  sheetReg.getRange(linhaRegistros, idxVolCol + 1).setValue(volume);
+}
+
 // Indexa os registros por id_registro unindo o historico (Registros) e os abertos
 // (RegistrosAbertos). Retorna { id: { data_inicio, data_fim, status } }.
 // Necessario nos calculos de carga, que podem envolver workers ja finalizados
@@ -250,6 +306,7 @@ function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFu
     }
 
     sheetReg.appendRow(novaLinha);
+    var linhaHist = sheetReg.getLastRow(); // linha onde acabou de gravar (dentro do lock)
     sheetAbertas.deleteRow(linhaAb + 1);
 
     return {
@@ -257,7 +314,8 @@ function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFu
       codigo_func: rowAb[hAb.indexOf('codigo_func')],
       id_tarefa: rowAb[hAb.indexOf('id_tarefa')],
       nome_tarefa: rowAb[hAb.indexOf('nome_tarefa')],
-      data_inicio: formatarData(rowAb[hAb.indexOf('data_inicio')])
+      data_inicio: formatarData(rowAb[hAb.indexOf('data_inicio')]),
+      linha_historico: linhaHist
     };
   } finally {
     if (temLock) { try { lock.releaseLock(); } catch (e) {} }
