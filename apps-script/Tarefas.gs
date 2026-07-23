@@ -148,50 +148,106 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 
   codigoFunc = codigoFunc.trim().toUpperCase();
 
-  // A tarefa em andamento vive na aba quente. Validar que existe e pertence ao funcionario.
-  var sheetReg = getSheet('RegistrosAbertos');
+  var agora = new Date();
+
+  // Caminho normal: a tarefa esta na aba quente. moverParaHistorico so move se
+  // a linha existir E pertencer a este funcionario (checagem dentro da funcao).
+  // Lock com espera de 8s (< 10s do timeout de rede do app) para falhar rapido
+  // sob concorrencia, em vez de estourar o timeout do cliente.
+  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario', codigoFunc, 8000);
+  if (movido && movido.ocupado) {
+    return { sucesso: false, mensagem: 'Sistema ocupado. Toque em finalizar novamente.' };
+  }
+  if (movido) {
+    return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, movido.linha_historico, movido.id_tarefa);
+  }
+
+  // Nao estava (mais) na aba quente. Duas situacoes legitimas caem aqui:
+  //  (a) IDEMPOTENCIA: uma tentativa ANTERIOR ja finalizou. Isso acontece quando a
+  //      primeira chamada demora, o app estoura o timeout de rede e faz retry — o
+  //      registro ja foi movido. Sem este tratamento, o retry devolvia
+  //      "Registro nao encontrado" mesmo tendo dado certo no servidor.
+  //  (b) LEGADO: tarefa aberta que ficou na aba Registros (iniciada por codigo antigo
+  //      durante a transicao de versao). Finalizamos no lugar.
+  var sheetReg = getSheet('Registros');
   var dados = sheetReg.getDataRange().getValues();
   var headers = dados[0];
-
   var idxId = headers.indexOf('id_registro');
   var idxCodFunc = headers.indexOf('codigo_func');
+  var idxIdTarefa = headers.indexOf('id_tarefa');
+  var idxDataFim = headers.indexOf('data_fim');
+  var idxStatus = headers.indexOf('status');
+  var idxFinalizadoPor = headers.indexOf('finalizado_por');
 
-  var pertence = false;
   for (var i = 1; i < dados.length; i++) {
     if (dados[i][idxId] === idRegistro &&
         String(dados[i][idxCodFunc]).trim().toUpperCase() === codigoFunc) {
-      pertence = true;
-      break;
+
+      if (dados[i][idxStatus] === 'em_andamento') {
+        // (b) legado aberto na aba Registros: finaliza no lugar
+        sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
+        sheetReg.getRange(i + 1, idxStatus + 1).setValue('finalizada');
+        sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('funcionario');
+        return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, i + 1, dados[i][idxIdTarefa]);
+      }
+
+      // (a) ja finalizada por tentativa anterior (retry): sucesso idempotente, sem regravar.
+      if (dados[i][idxStatus] === 'finalizada') {
+        return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), 'finalizada', false, codigoFunc, i + 1, dados[i][idxIdTarefa]);
+      }
+
+      // status 'timeout' (ou outro): foi encerrada pelo SISTEMA, nao pelo funcionario.
+      // Nao creditar como finalizacao nem gerar distribuicao (worker de timeout e excluido).
+      return { sucesso: false, mensagem: 'Esta tarefa foi encerrada automaticamente por tempo (timeout).' };
     }
   }
-  if (!pertence) {
-    return { sucesso: false, mensagem: 'Registro não encontrado.' };
-  }
 
-  var agora = new Date();
+  return { sucesso: false, mensagem: 'Registro não encontrado.' };
+}
 
-  // Move para o historico (aba Registros) marcando como finalizada
-  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario');
-  if (!movido) {
-    return { sucesso: false, mensagem: 'Esta tarefa já foi finalizada.' };
-  }
-
+// Monta o resultado de uma finalizacao bem-sucedida, anexando a distribuicao da
+// carga (se houver). recalcular=true grava os volumes no historico.
+// linhaRegistros = linha do registro na aba Registros (para o atalho gravar direto).
+function montarResultadoFinalizacao(idRegistro, dataFimIso, status, recalcular, codigoFunc, linhaRegistros, idTarefa) {
   var resultado = {
     sucesso: true,
-    dados: {
-      id_registro: idRegistro,
-      data_fim: agora.toISOString(),
-      status: 'finalizada'
-    },
+    dados: { id_registro: idRegistro, data_fim: dataFimIso, status: status },
     mensagem: 'Tarefa finalizada com sucesso.'
   };
 
-  var carga = buscarCargaDoRegistro(idRegistro);
-  if (carga) {
-    var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
-    resultado.dados.distribuicao = distribuicao;
+  // Tarefa comum (Limpeza, Conferencia, Avarias): nao tem carga nem distribuicao,
+  // entao NAO lemos a aba Cargas — encerramento sai direto, sem custo extra.
+  if (!tarefaUsaCarga(idTarefa)) return resultado;
+
+  // Contexto da carga numa unica leitura da aba Cargas
+  var ctx = contextoCargaDoRegistro(idRegistro);
+  if (!ctx) return resultado; // sem carga registrada ainda
+
+  // ATALHO — carga de um unico trabalhador, sem ajudante: leva 100% dos volumes.
+  // Evita calcularDistribuicaoVolumes (le as duas abas cheias) e salvarVolumesDistribuicao;
+  // grava direto 1 celula na linha do registro. Cobre o caso mais comum.
+  if (ctx.total_workers === 1 && !ctx.tem_ajudante) {
+    if (recalcular && linhaRegistros) {
+      gravarVolumeProporcional(linhaRegistros, ctx.qtd_volumes);
+    }
+    var codUp = String(codigoFunc).trim().toUpperCase();
+    var mapaNomes = buscarMapaNomes();
+    resultado.dados.distribuicao = [{
+      codigo_func: codigoFunc,
+      nome_func: mapaNomes[codUp] || codigoFunc,
+      volumes_proporcionais: ctx.qtd_volumes,
+      percentual: '100.0',
+      status: 'finalizada'
+    }];
+    return resultado;
+  }
+
+  // Carga compartilhada (ou com ajudante): distribuicao proporcional completa.
+  var distribuicao = calcularDistribuicaoVolumes(ctx.numero_carga, ctx.qtd_volumes);
+  resultado.dados.distribuicao = distribuicao;
+  if (recalcular) {
     // Gravar volumes no Registros para que o historico leia sem recalcular
-    salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
+    salvarVolumesDistribuicao(ctx.numero_carga, distribuicao);
   }
 
   return resultado;
@@ -239,14 +295,15 @@ function salvarVolumesDistribuicao(numeroCarga, distribuicao) {
     sheetReg.getRange(1, idxVolCol + 1).setValue('volumes_proporcionais');
   }
 
-  // Atualizar cada linha cujo id_registro pertence a esta carga
+  // Escrever APENAS as celulas dos workers DESTA carga. Nao reescrever a coluna
+  // inteira: como esta funcao roda fora do lock, reescrever tudo a partir de um
+  // snapshot poderia sobrescrever volumes de OUTRA carga gravados em paralelo.
+  // Sao poucas celulas (workers de uma carga), entao o custo e desprezivel.
   for (var r = 1; r < dadosReg.length; r++) {
     var idReg = dadosReg[r][idxRegId];
-    if (idRegParaFunc[idReg] !== undefined) {
-      var funcUpper = idRegParaFunc[idReg];
-      if (mapaVolumes[funcUpper] !== undefined) {
-        sheetReg.getRange(r + 1, idxVolCol + 1).setValue(mapaVolumes[funcUpper]);
-      }
+    var funcUpper = idRegParaFunc[idReg];
+    if (funcUpper !== undefined && mapaVolumes[funcUpper] !== undefined) {
+      sheetReg.getRange(r + 1, idxVolCol + 1).setValue(mapaVolumes[funcUpper]);
     }
   }
 }

@@ -172,6 +172,87 @@ function criarAbaSeNecessario(ss, nomeAba) {
   return sheet;
 }
 
+// A tarefa usa carga? Consulta a aba Tarefas via cache (barato). Usado no
+// encerramento para NAO ler a aba Cargas quando a tarefa e comum (Limpeza etc.).
+function tarefaUsaCarga(idTarefa) {
+  if (!idTarefa) return false;
+  var dados = getSheetDataCached('Tarefas', 600);
+  var h = dados[0];
+  var iId = h.indexOf('id_tarefa');
+  var iUsa = h.indexOf('usa_qrcode_carga');
+  for (var i = 1; i < dados.length; i++) {
+    if (dados[i][iId] === idTarefa) {
+      var v = dados[i][iUsa];
+      // Enviesado para seguranca: so considera "sem carga" quando e CLARAMENTE falso
+      // (boolean false, vazio, "false"/"nao"/"0"). Aceita boolean true e string "true"
+      // (ex.: tarefa criada via POST). Valor ambiguo cai no caminho de carga —
+      // contextoCargaDoRegistro devolve null se nao houver carga (inofensivo), evitando
+      // classificar errado uma carga como comum e deixar de gravar volumes.
+      if (v === false) return false;
+      var s = String(v).trim().toLowerCase();
+      if (s === '' || s === 'false' || s === '0' || s === 'nao' || s === 'não') return false;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Contexto da carga de um registro em UMA leitura da aba Cargas.
+// Retorna a carga do registro + quantos trabalhadores/ajudante ha na mesma carga
+// (para o finalizar decidir entre atalho de 1 worker e distribuicao completa).
+// Retorna null se o registro nao tiver carga (tarefa comum, ex.: Limpeza).
+function contextoCargaDoRegistro(idRegistro) {
+  var dados = getSheet('Cargas').getDataRange().getValues();
+  var h = dados[0];
+  var iIdReg = h.indexOf('id_registro');
+  var iNum   = h.indexOf('numero_carga');
+  var iQtd   = h.indexOf('qtd_volumes');
+  var iDoca  = h.indexOf('doca');
+  var iAju   = h.indexOf('ajudante');
+
+  var numero = null, qtd = null, doca = '';
+  for (var i = 1; i < dados.length; i++) {
+    if (dados[i][iIdReg] === idRegistro) {
+      numero = dados[i][iNum];
+      qtd = dados[i][iQtd];
+      doca = iDoca >= 0 ? dados[i][iDoca] : '';
+      break;
+    }
+  }
+  if (numero === null) return null;
+
+  var totalWorkers = 0, temAjudante = false;
+  for (var j = 1; j < dados.length; j++) {
+    if (dados[j][iNum] === numero) {
+      totalWorkers++;
+      if (iAju >= 0 && dados[j][iAju] === true) temAjudante = true;
+    }
+  }
+
+  return {
+    numero_carga: numero,
+    qtd_volumes: qtd,
+    doca: doca,
+    nome_doca: buscarNomeDoca(doca),
+    total_workers: totalWorkers,
+    tem_ajudante: temAjudante
+  };
+}
+
+// Grava um valor de volumes_proporcionais numa linha especifica da aba Registros,
+// criando a coluna se necessario. Usado pelo atalho de carga com 1 trabalhador
+// (evita reler a aba inteira so para escrever 1 celula).
+function gravarVolumeProporcional(linhaRegistros, volume) {
+  var sheetReg = getSheet('Registros');
+  var header = sheetReg.getRange(1, 1, 1, sheetReg.getLastColumn()).getValues()[0];
+  var idxVolCol = header.indexOf('volumes_proporcionais');
+  if (idxVolCol === -1) {
+    idxVolCol = header.length; // 0-based: proxima coluna livre
+    sheetReg.getRange(1, idxVolCol + 1).setValue('volumes_proporcionais');
+  }
+  sheetReg.getRange(linhaRegistros, idxVolCol + 1).setValue(volume);
+}
+
 // Indexa os registros por id_registro unindo o historico (Registros) e os abertos
 // (RegistrosAbertos). Retorna { id: { data_inicio, data_fim, status } }.
 // Necessario nos calculos de carga, que podem envolver workers ja finalizados
@@ -202,20 +283,37 @@ function _indexarRegistrosPorId() {
 // Grava primeiro no historico e so entao remove da aba de abertas: se algo falhar
 // no meio, o pior caso e uma duplicata recuperavel, nunca perda do registro.
 // Retorna os dados basicos do registro movido, ou null se ele nao existir mais em aberto.
-function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor) {
+function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFuncEsperado, lockWaitMs) {
+  // Espera pelo lock com timeout que pode ser MENOR que o timeout de rede do app
+  // (10s). Assim, um encerramento sob concorrencia falha rapido (e o app repete)
+  // em vez de o cliente abortar deixando a execucao pendurada segurando o lock —
+  // efeito bola de neve que gerava "erro de conexao" em pico de turno.
   var lock = LockService.getScriptLock();
-  var temLock = false;
-  try { lock.waitLock(20000); temLock = true; } catch (e) {}
+  try {
+    lock.waitLock(lockWaitMs || 20000);
+  } catch (e) {
+    // Nao conseguiu o lock a tempo: NAO mexe sem garantia (evita duplicata no historico).
+    return { ocupado: true };
+  }
 
   try {
     var sheetAbertas = getSheet('RegistrosAbertos');
     var dadosAb = sheetAbertas.getDataRange().getValues();
     var hAb = dadosAb[0];
     var abId = hAb.indexOf('id_registro');
+    var abCodFunc = hAb.indexOf('codigo_func');
 
     var linhaAb = -1;
     for (var i = 1; i < dadosAb.length; i++) {
-      if (dadosAb[i][abId] === idRegistro) { linhaAb = i; break; }
+      if (dadosAb[i][abId] === idRegistro) {
+        // Se informado, so move se a linha pertencer ao funcionario esperado
+        if (codigoFuncEsperado &&
+            String(dadosAb[i][abCodFunc]).trim().toUpperCase() !== String(codigoFuncEsperado).trim().toUpperCase()) {
+          return null;
+        }
+        linhaAb = i;
+        break;
+      }
     }
     if (linhaAb === -1) return null;
 
@@ -241,6 +339,7 @@ function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor) {
     }
 
     sheetReg.appendRow(novaLinha);
+    var linhaHist = sheetReg.getLastRow(); // linha onde acabou de gravar (dentro do lock)
     sheetAbertas.deleteRow(linhaAb + 1);
 
     return {
@@ -248,10 +347,11 @@ function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor) {
       codigo_func: rowAb[hAb.indexOf('codigo_func')],
       id_tarefa: rowAb[hAb.indexOf('id_tarefa')],
       nome_tarefa: rowAb[hAb.indexOf('nome_tarefa')],
-      data_inicio: formatarData(rowAb[hAb.indexOf('data_inicio')])
+      data_inicio: formatarData(rowAb[hAb.indexOf('data_inicio')]),
+      linha_historico: linhaHist
     };
   } finally {
-    if (temLock) { try { lock.releaseLock(); } catch (e) {} }
+    try { lock.releaseLock(); } catch (e) {}
   }
 }
 

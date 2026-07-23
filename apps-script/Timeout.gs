@@ -48,7 +48,7 @@ function verificarTimeouts() {
   var timeoutsRealizados = 0;
   for (var e = 0; e < expirados.length; e++) {
     var movido = moverParaHistorico(expirados[e].id, agora, 'timeout', 'sistema');
-    if (!movido) continue;
+    if (!movido || movido.ocupado) continue;
 
     timeoutsRealizados++;
     Logger.log('Timeout realizado: ' + expirados[e].id + ' - Func: ' + expirados[e].codigo_func);
