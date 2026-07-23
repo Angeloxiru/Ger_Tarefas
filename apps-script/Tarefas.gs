@@ -191,8 +191,14 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
         return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, i + 1, dados[i][idxIdTarefa]);
       }
 
-      // (a) ja finalizada/timeout: retorna sucesso (idempotente), sem regravar volumes
-      return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), dados[i][idxStatus], false, codigoFunc, i + 1, dados[i][idxIdTarefa]);
+      // (a) ja finalizada por tentativa anterior (retry): sucesso idempotente, sem regravar.
+      if (dados[i][idxStatus] === 'finalizada') {
+        return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), 'finalizada', false, codigoFunc, i + 1, dados[i][idxIdTarefa]);
+      }
+
+      // status 'timeout' (ou outro): foi encerrada pelo SISTEMA, nao pelo funcionario.
+      // Nao creditar como finalizacao nem gerar distribuicao (worker de timeout e excluido).
+      return { sucesso: false, mensagem: 'Esta tarefa foi encerrada automaticamente por tempo (timeout).' };
     }
   }
 
@@ -289,22 +295,16 @@ function salvarVolumesDistribuicao(numeroCarga, distribuicao) {
     sheetReg.getRange(1, idxVolCol + 1).setValue('volumes_proporcionais');
   }
 
-  // Atualizar a coluna volumes_proporcionais em LOTE: monta a coluna inteira e
-  // grava de uma vez (1 setValues) em vez de uma escrita por worker.
-  var totalLinhas = dadosReg.length - 1;
-  if (totalLinhas > 0) {
-    var coluna = [];
-    for (var r = 1; r < dadosReg.length; r++) {
-      var idReg = dadosReg[r][idxRegId];
-      var funcUpper = idRegParaFunc[idReg];
-      if (funcUpper !== undefined && mapaVolumes[funcUpper] !== undefined) {
-        coluna.push([mapaVolumes[funcUpper]]);
-      } else {
-        // preserva o valor atual (ou vazio se a coluna acabou de ser criada)
-        coluna.push([idxVolCol < dadosReg[r].length ? dadosReg[r][idxVolCol] : '']);
-      }
+  // Escrever APENAS as celulas dos workers DESTA carga. Nao reescrever a coluna
+  // inteira: como esta funcao roda fora do lock, reescrever tudo a partir de um
+  // snapshot poderia sobrescrever volumes de OUTRA carga gravados em paralelo.
+  // Sao poucas celulas (workers de uma carga), entao o custo e desprezivel.
+  for (var r = 1; r < dadosReg.length; r++) {
+    var idReg = dadosReg[r][idxRegId];
+    var funcUpper = idRegParaFunc[idReg];
+    if (funcUpper !== undefined && mapaVolumes[funcUpper] !== undefined) {
+      sheetReg.getRange(r + 1, idxVolCol + 1).setValue(mapaVolumes[funcUpper]);
     }
-    sheetReg.getRange(2, idxVolCol + 1, totalLinhas, 1).setValues(coluna);
   }
 }
 

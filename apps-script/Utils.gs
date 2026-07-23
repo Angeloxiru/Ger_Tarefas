@@ -181,7 +181,18 @@ function tarefaUsaCarga(idTarefa) {
   var iId = h.indexOf('id_tarefa');
   var iUsa = h.indexOf('usa_qrcode_carga');
   for (var i = 1; i < dados.length; i++) {
-    if (dados[i][iId] === idTarefa) return dados[i][iUsa] === true;
+    if (dados[i][iId] === idTarefa) {
+      var v = dados[i][iUsa];
+      // Enviesado para seguranca: so considera "sem carga" quando e CLARAMENTE falso
+      // (boolean false, vazio, "false"/"nao"/"0"). Aceita boolean true e string "true"
+      // (ex.: tarefa criada via POST). Valor ambiguo cai no caminho de carga —
+      // contextoCargaDoRegistro devolve null se nao houver carga (inofensivo), evitando
+      // classificar errado uma carga como comum e deixar de gravar volumes.
+      if (v === false) return false;
+      var s = String(v).trim().toLowerCase();
+      if (s === '' || s === 'false' || s === '0' || s === 'nao' || s === 'não') return false;
+      return true;
+    }
   }
   return false;
 }
