@@ -148,41 +148,57 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 
   codigoFunc = codigoFunc.trim().toUpperCase();
 
-  // A tarefa em andamento vive na aba quente. Validar que existe e pertence ao funcionario.
-  var sheetReg = getSheet('RegistrosAbertos');
+  var agora = new Date();
+
+  // Caminho normal: a tarefa esta na aba quente. moverParaHistorico so move se
+  // a linha existir E pertencer a este funcionario (checagem dentro da funcao).
+  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario', codigoFunc);
+  if (movido) {
+    return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true);
+  }
+
+  // Nao estava (mais) na aba quente. Duas situacoes legitimas caem aqui:
+  //  (a) IDEMPOTENCIA: uma tentativa ANTERIOR ja finalizou. Isso acontece quando a
+  //      primeira chamada demora, o app estoura o timeout de rede e faz retry — o
+  //      registro ja foi movido. Sem este tratamento, o retry devolvia
+  //      "Registro nao encontrado" mesmo tendo dado certo no servidor.
+  //  (b) LEGADO: tarefa aberta que ficou na aba Registros (iniciada por codigo antigo
+  //      durante a transicao de versao). Finalizamos no lugar.
+  var sheetReg = getSheet('Registros');
   var dados = sheetReg.getDataRange().getValues();
   var headers = dados[0];
-
   var idxId = headers.indexOf('id_registro');
   var idxCodFunc = headers.indexOf('codigo_func');
+  var idxDataFim = headers.indexOf('data_fim');
+  var idxStatus = headers.indexOf('status');
+  var idxFinalizadoPor = headers.indexOf('finalizado_por');
 
-  var pertence = false;
   for (var i = 1; i < dados.length; i++) {
     if (dados[i][idxId] === idRegistro &&
         String(dados[i][idxCodFunc]).trim().toUpperCase() === codigoFunc) {
-      pertence = true;
-      break;
+
+      if (dados[i][idxStatus] === 'em_andamento') {
+        // (b) legado aberto na aba Registros: finaliza no lugar
+        sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
+        sheetReg.getRange(i + 1, idxStatus + 1).setValue('finalizada');
+        sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('funcionario');
+        return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true);
+      }
+
+      // (a) ja finalizada/timeout: retorna sucesso (idempotente), sem regravar volumes
+      return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), dados[i][idxStatus], false);
     }
   }
-  if (!pertence) {
-    return { sucesso: false, mensagem: 'Registro não encontrado.' };
-  }
 
-  var agora = new Date();
+  return { sucesso: false, mensagem: 'Registro não encontrado.' };
+}
 
-  // Move para o historico (aba Registros) marcando como finalizada
-  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario');
-  if (!movido) {
-    return { sucesso: false, mensagem: 'Esta tarefa já foi finalizada.' };
-  }
-
+// Monta o resultado de uma finalizacao bem-sucedida, anexando a distribuicao da
+// carga (se houver). recalcular=true tambem grava os volumes no historico.
+function montarResultadoFinalizacao(idRegistro, dataFimIso, status, recalcular) {
   var resultado = {
     sucesso: true,
-    dados: {
-      id_registro: idRegistro,
-      data_fim: agora.toISOString(),
-      status: 'finalizada'
-    },
+    dados: { id_registro: idRegistro, data_fim: dataFimIso, status: status },
     mensagem: 'Tarefa finalizada com sucesso.'
   };
 
@@ -190,8 +206,10 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
   if (carga) {
     var distribuicao = calcularDistribuicaoVolumes(carga.numero_carga, carga.qtd_volumes);
     resultado.dados.distribuicao = distribuicao;
-    // Gravar volumes no Registros para que o historico leia sem recalcular
-    salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
+    if (recalcular) {
+      // Gravar volumes no Registros para que o historico leia sem recalcular
+      salvarVolumesDistribuicao(carga.numero_carga, distribuicao);
+    }
   }
 
   return resultado;

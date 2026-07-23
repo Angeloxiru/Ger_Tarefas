@@ -202,7 +202,7 @@ function _indexarRegistrosPorId() {
 // Grava primeiro no historico e so entao remove da aba de abertas: se algo falhar
 // no meio, o pior caso e uma duplicata recuperavel, nunca perda do registro.
 // Retorna os dados basicos do registro movido, ou null se ele nao existir mais em aberto.
-function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor) {
+function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFuncEsperado) {
   var lock = LockService.getScriptLock();
   var temLock = false;
   try { lock.waitLock(20000); temLock = true; } catch (e) {}
@@ -212,10 +212,19 @@ function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor) {
     var dadosAb = sheetAbertas.getDataRange().getValues();
     var hAb = dadosAb[0];
     var abId = hAb.indexOf('id_registro');
+    var abCodFunc = hAb.indexOf('codigo_func');
 
     var linhaAb = -1;
     for (var i = 1; i < dadosAb.length; i++) {
-      if (dadosAb[i][abId] === idRegistro) { linhaAb = i; break; }
+      if (dadosAb[i][abId] === idRegistro) {
+        // Se informado, so move se a linha pertencer ao funcionario esperado
+        if (codigoFuncEsperado &&
+            String(dadosAb[i][abCodFunc]).trim().toUpperCase() !== String(codigoFuncEsperado).trim().toUpperCase()) {
+          return null;
+        }
+        linhaAb = i;
+        break;
+      }
     }
     if (linhaAb === -1) return null;
 
