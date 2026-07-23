@@ -172,6 +172,20 @@ function criarAbaSeNecessario(ss, nomeAba) {
   return sheet;
 }
 
+// A tarefa usa carga? Consulta a aba Tarefas via cache (barato). Usado no
+// encerramento para NAO ler a aba Cargas quando a tarefa e comum (Limpeza etc.).
+function tarefaUsaCarga(idTarefa) {
+  if (!idTarefa) return false;
+  var dados = getSheetDataCached('Tarefas', 600);
+  var h = dados[0];
+  var iId = h.indexOf('id_tarefa');
+  var iUsa = h.indexOf('usa_qrcode_carga');
+  for (var i = 1; i < dados.length; i++) {
+    if (dados[i][iId] === idTarefa) return dados[i][iUsa] === true;
+  }
+  return false;
+}
+
 // Contexto da carga de um registro em UMA leitura da aba Cargas.
 // Retorna a carga do registro + quantos trabalhadores/ajudante ha na mesma carga
 // (para o finalizar decidir entre atalho de 1 worker e distribuicao completa).
@@ -258,10 +272,18 @@ function _indexarRegistrosPorId() {
 // Grava primeiro no historico e so entao remove da aba de abertas: se algo falhar
 // no meio, o pior caso e uma duplicata recuperavel, nunca perda do registro.
 // Retorna os dados basicos do registro movido, ou null se ele nao existir mais em aberto.
-function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFuncEsperado) {
+function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFuncEsperado, lockWaitMs) {
+  // Espera pelo lock com timeout que pode ser MENOR que o timeout de rede do app
+  // (10s). Assim, um encerramento sob concorrencia falha rapido (e o app repete)
+  // em vez de o cliente abortar deixando a execucao pendurada segurando o lock —
+  // efeito bola de neve que gerava "erro de conexao" em pico de turno.
   var lock = LockService.getScriptLock();
-  var temLock = false;
-  try { lock.waitLock(20000); temLock = true; } catch (e) {}
+  try {
+    lock.waitLock(lockWaitMs || 20000);
+  } catch (e) {
+    // Nao conseguiu o lock a tempo: NAO mexe sem garantia (evita duplicata no historico).
+    return { ocupado: true };
+  }
 
   try {
     var sheetAbertas = getSheet('RegistrosAbertos');
@@ -318,7 +340,7 @@ function moverParaHistorico(idRegistro, dataFim, status, finalizadoPor, codigoFu
       linha_historico: linhaHist
     };
   } finally {
-    if (temLock) { try { lock.releaseLock(); } catch (e) {} }
+    try { lock.releaseLock(); } catch (e) {}
   }
 }
 

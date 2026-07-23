@@ -152,9 +152,14 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 
   // Caminho normal: a tarefa esta na aba quente. moverParaHistorico so move se
   // a linha existir E pertencer a este funcionario (checagem dentro da funcao).
-  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario', codigoFunc);
+  // Lock com espera de 8s (< 10s do timeout de rede do app) para falhar rapido
+  // sob concorrencia, em vez de estourar o timeout do cliente.
+  var movido = moverParaHistorico(idRegistro, agora, 'finalizada', 'funcionario', codigoFunc, 8000);
+  if (movido && movido.ocupado) {
+    return { sucesso: false, mensagem: 'Sistema ocupado. Toque em finalizar novamente.' };
+  }
   if (movido) {
-    return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, movido.linha_historico);
+    return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, movido.linha_historico, movido.id_tarefa);
   }
 
   // Nao estava (mais) na aba quente. Duas situacoes legitimas caem aqui:
@@ -169,6 +174,7 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
   var headers = dados[0];
   var idxId = headers.indexOf('id_registro');
   var idxCodFunc = headers.indexOf('codigo_func');
+  var idxIdTarefa = headers.indexOf('id_tarefa');
   var idxDataFim = headers.indexOf('data_fim');
   var idxStatus = headers.indexOf('status');
   var idxFinalizadoPor = headers.indexOf('finalizado_por');
@@ -182,11 +188,11 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
         sheetReg.getRange(i + 1, idxDataFim + 1).setValue(agora);
         sheetReg.getRange(i + 1, idxStatus + 1).setValue('finalizada');
         sheetReg.getRange(i + 1, idxFinalizadoPor + 1).setValue('funcionario');
-        return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, i + 1);
+        return montarResultadoFinalizacao(idRegistro, agora.toISOString(), 'finalizada', true, codigoFunc, i + 1, dados[i][idxIdTarefa]);
       }
 
       // (a) ja finalizada/timeout: retorna sucesso (idempotente), sem regravar volumes
-      return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), dados[i][idxStatus], false, codigoFunc, i + 1);
+      return montarResultadoFinalizacao(idRegistro, formatarData(dados[i][idxDataFim]), dados[i][idxStatus], false, codigoFunc, i + 1, dados[i][idxIdTarefa]);
     }
   }
 
@@ -196,16 +202,20 @@ function Tarefas_finalizar(codigoFunc, idRegistro) {
 // Monta o resultado de uma finalizacao bem-sucedida, anexando a distribuicao da
 // carga (se houver). recalcular=true grava os volumes no historico.
 // linhaRegistros = linha do registro na aba Registros (para o atalho gravar direto).
-function montarResultadoFinalizacao(idRegistro, dataFimIso, status, recalcular, codigoFunc, linhaRegistros) {
+function montarResultadoFinalizacao(idRegistro, dataFimIso, status, recalcular, codigoFunc, linhaRegistros, idTarefa) {
   var resultado = {
     sucesso: true,
     dados: { id_registro: idRegistro, data_fim: dataFimIso, status: status },
     mensagem: 'Tarefa finalizada com sucesso.'
   };
 
+  // Tarefa comum (Limpeza, Conferencia, Avarias): nao tem carga nem distribuicao,
+  // entao NAO lemos a aba Cargas — encerramento sai direto, sem custo extra.
+  if (!tarefaUsaCarga(idTarefa)) return resultado;
+
   // Contexto da carga numa unica leitura da aba Cargas
   var ctx = contextoCargaDoRegistro(idRegistro);
-  if (!ctx) return resultado; // tarefa sem carga (ex.: Limpeza)
+  if (!ctx) return resultado; // sem carga registrada ainda
 
   // ATALHO — carga de um unico trabalhador, sem ajudante: leva 100% dos volumes.
   // Evita calcularDistribuicaoVolumes (le as duas abas cheias) e salvarVolumesDistribuicao;
