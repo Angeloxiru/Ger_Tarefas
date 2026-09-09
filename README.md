@@ -407,6 +407,48 @@ Siga nesta ordem; cada passo isola uma camada:
 
 ---
 
+## Requisitos de rede (liberação no WiFi/firewall)
+
+O app roda em WiFi corporativa que pode filtrar domínios/IPs. Libere **todos** os itens
+abaixo, senão o app quebra em pontos específicos. Tudo é **HTTPS (TCP 443)** — não há HTTP
+puro nem outras portas. Se houver filtro de DNS, esses domínios também precisam ser resolvíveis.
+
+### Domínios (forma recomendada de liberar)
+
+| Domínio | Para quê | Se bloquear |
+|---|---|---|
+| `angeloxiru.github.io` | Hospedagem do app (HTML/JS/CSS/ícones/manifest/SW) | app não abre |
+| `script.google.com` | Backend (Google Apps Script): login, tarefas, cargas | login e todas as ações |
+| `script.googleusercontent.com` | Destino do redirect 302 das respostas do `/exec` | respostas não voltam |
+| `unpkg.com` | Biblioteca do leitor de QRcode (`html5-qrcode`) | câmera/scanner |
+
+> O `script.googleusercontent.com` é essencial e fácil de esquecer: toda chamada ao `/exec`
+> redireciona para lá. Liberar só `script.google.com` faz o app conectar mas nenhuma resposta chegar.
+
+### IPs — preferir domínio
+
+Google/Cloudflare/Fastly usam faixas de IP dinâmicas (CDN/anycast); fixar IP quebra sozinho.
+Se o controle só aceitar IP:
+- **GitHub Pages** (estáveis, documentados): `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
+- **Google** (`script.google.com`, `script.googleusercontent.com`): sem conjunto estável — liberar por domínio, ou faixas do Google (ASN AS15169, `https://www.gstatic.com/ipranges/goog.json`).
+- **unpkg** (Cloudflare): anycast dinâmico — liberar por domínio.
+
+### Cuidados que derrubam o app
+
+- **Inspeção de SSL/MITM:** se o WiFi reassina certificados, pode quebrar a validação e a
+  câmera (que exige HTTPS confiável). Faça **SSL bypass** desses 4 domínios ou instale a CA do
+  proxy no coletor.
+- **Sem downgrade para HTTP:** o app só funciona em HTTPS (service worker + câmera). Portais
+  cativos que injetam conteúdo ou rebaixam a conexão quebram o PWA.
+
+### Reduzir dependências externas (opcional)
+
+Hoje o `unpkg.com` é a única dependência de terceiros em runtime (fora Google/GitHub). Para
+eliminá-la, hospedar o `html5-qrcode.min.js` no próprio repositório e cachear no service worker
+— aí a lista de domínios externos cai para GitHub Pages + Google.
+
+---
+
 ## Limites e consideracoes
 
 - Google Apps Script: 6 min/execucao, ~20.000 chamadas/dia
