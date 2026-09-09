@@ -59,7 +59,10 @@ const Tarefas = {
 
     const atualizar = () => {
       const agora = Date.now();
-      const diff = agora - inicio;
+      // Nunca mostrar tempo negativo: se o relogio do coletor estiver atrasado em
+      // relacao ao horario de inicio (carimbado pelo servidor Google), o diff seria
+      // negativo. Trava em 0 ate o relogio local alcancar o inicio.
+      const diff = Math.max(0, agora - inicio);
 
       const horas = Math.floor(diff / 3600000);
       const minutos = Math.floor((diff % 3600000) / 60000);

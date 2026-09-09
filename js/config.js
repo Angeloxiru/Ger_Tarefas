@@ -3,7 +3,7 @@
 
 const CONFIG = {
   // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v8',
+  APP_VERSION: 'v9',
 
   // URL do Google Apps Script publicado como Web App
   API_URL: 'https://script.google.com/macros/s/AKfycbwEiDhYoJPRPUdi7rjXe8k18K5eNmSailG2hChiO4EM44KJeS8e9MD0kFDQBVpDGdXz/exec',
