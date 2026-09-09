@@ -6,7 +6,7 @@ var SPREADSHEET_ID = '1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y';
 
 // Versao do backend. Bumpe a cada mudanca no Apps Script publicada.
 // Consulte com: <API_URL>?acao=versao — mostra qual codigo o /exec esta executando.
-var BACKEND_VERSION = 'abertas-7';
+var BACKEND_VERSION = 'abertas-8';
 
 function doGet(e) {
   var acao = e.parameter.acao;
@@ -25,7 +25,9 @@ function doGet(e) {
           diag.iniciar_grava_em = (Tarefas_iniciar.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
         } catch (er1) { diag.iniciar_grava_em = 'ERRO: ' + er1.message; }
         try {
-          diag.finalizar_le_de = (Tarefas_finalizar.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
+          // O finalizar novo delega a leitura da aba quente a moverParaHistorico,
+          // entao NAO contem a palavra 'RegistrosAbertos' — usamos esse delegate como marcador.
+          diag.finalizar_le_de = (Tarefas_finalizar.toString().indexOf('moverParaHistorico') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
         } catch (er2) { diag.finalizar_le_de = 'ERRO: ' + er2.message; }
         try {
           diag.status_le_de = (Tarefas_statusFuncionario.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
