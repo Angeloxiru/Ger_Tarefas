@@ -6,7 +6,7 @@ var SPREADSHEET_ID = '1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y';
 
 // Versao do backend. Bumpe a cada mudanca no Apps Script publicada.
 // Consulte com: <API_URL>?acao=versao — mostra qual codigo o /exec esta executando.
-var BACKEND_VERSION = 'abertas-6';
+var BACKEND_VERSION = 'abertas-7';
 
 function doGet(e) {
   var acao = e.parameter.acao;
@@ -30,6 +30,9 @@ function doGet(e) {
         try {
           diag.status_le_de = (Tarefas_statusFuncionario.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
         } catch (er3) { diag.status_le_de = 'ERRO: ' + er3.message; }
+        try {
+          diag.timeout_le_de = (verificarTimeouts.toString().indexOf('RegistrosAbertos') >= 0) ? 'RegistrosAbertos (novo)' : 'Registros (ANTIGO)';
+        } catch (er4) { diag.timeout_le_de = 'ERRO: ' + er4.message; }
         resultado = { sucesso: true, dados: diag };
         break;
 
