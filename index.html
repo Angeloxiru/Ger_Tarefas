@@ -16,6 +16,9 @@
 <body>
   <div class="login-container">
     <div class="logo">Sistema de Atividades</div>
+
+    <!-- Coletor: vinculo do aparelho e situacao (js/coletor.js) -->
+    <div id="coletor-login"></div>
     <p class="subtitle">Escaneie seu crachá para entrar</p>
 
     <!-- Etapa 1: Identificacao -->
@@ -30,7 +33,7 @@
 
       <div class="input-group mt-16">
         <input type="text" id="codigo-manual" class="input-text" placeholder="Código do crachá"
-          maxlength="10" autocomplete="off">
+          maxlength="40" autocomplete="off">
         <button class="btn btn-primary" onclick="verificarCracha()" style="width:auto;padding:12px 20px;">
           Próximo
         </button>
@@ -74,8 +77,8 @@
     <div id="app-version" class="app-version"></div>
   </div>
 
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="js/config.js?v=9"></script>
+  <script src="js/vendor/html5-qrcode.min.js?v=10"></script>
+  <script src="js/config.js?v=10"></script>
   <script>
     // Guard de versao: detecta novo deploy e recarrega uma vez
     (function() {
@@ -89,9 +92,10 @@
       }
     })();
   </script>
-  <script src="js/api.js?v=9"></script>
-  <script src="js/auth.js?v=9"></script>
-  <script src="js/scanner.js?v=9"></script>
+  <script src="js/api.js?v=10"></script>
+  <script src="js/auth.js?v=10"></script>
+  <script src="js/scanner.js?v=10"></script>
+  <script src="js/coletor.js?v=10"></script>
   <script>
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
@@ -106,6 +110,26 @@
 
     let scanAtivo = false;
     let codigoSelecionado = '';
+
+    // Bloco do coletor: vinculo (primeira vez) e situacao atual
+    Coletor.prepararLogin('coletor-login', {
+      aposVincular: () => document.getElementById('codigo-manual').focus()
+    });
+
+    // Erros de login que nao sao de conexao nao mostram "Tentar de Novo / Ativar Servidor"
+    function tratarFalhaLogin(resultado) {
+      if (resultado && resultado.semAcoes) {
+        voltarCodigo();
+        document.getElementById('codigo-manual').value = '';
+        mostrarMsg(resultado.mensagem || '', resultado.mensagem ? 'error' : '');
+        Coletor.prepararLogin('coletor-login', {
+          aposVincular: () => document.getElementById('codigo-manual').focus()
+        });
+        return;
+      }
+      mostrarMsg((resultado && resultado.mensagem) || 'Sem conexão. Tente novamente.', 'error');
+      document.getElementById('error-actions').classList.remove('hidden');
+    }
 
     // Exibir versao do app (facilita verificar se o coletor atualizou)
     (function() {
@@ -181,6 +205,20 @@
     // Verifica se o cracha existe e se requer senha
     async function verificarCrachaCodigo(codigo) {
       mostrarMsg('', '');
+
+      // QR da base de coletores ou de configuracao lido no lugar do cracha
+      const tipoQR = Coletor.classificarQR(codigo);
+      if (tipoQR === 'retirada' || tipoQR === 'devolucao') {
+        document.getElementById('codigo-manual').value = '';
+        mostrarMsg('Este é o QR da base de coletores. Primeiro leia o seu crachá para entrar.', 'error');
+        return;
+      }
+      if (tipoQR === 'config') {
+        document.getElementById('codigo-manual').value = '';
+        await Coletor.vincular(codigo);
+        return;
+      }
+
       document.getElementById('loading').classList.add('visivel');
       document.getElementById('error-actions').classList.add('hidden');
 
@@ -232,8 +270,7 @@
       }
 
       if (!resultado || !resultado.sucesso) {
-        mostrarMsg((resultado && resultado.mensagem) || 'Sem conexão. Tente novamente.', 'error');
-        document.getElementById('error-actions').classList.remove('hidden');
+        tratarFalhaLogin(resultado);
       }
     }
 
@@ -258,8 +295,7 @@
       }
 
       if (!resultado || !resultado.sucesso) {
-        mostrarMsg((resultado && resultado.mensagem) || 'Sem conexão. Tente novamente.', 'error');
-        document.getElementById('error-actions').classList.remove('hidden');
+        tratarFalhaLogin(resultado);
       }
     }
 

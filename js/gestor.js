@@ -84,7 +84,7 @@ const Gestor = {
     });
   },
 
-  renderizarFuncionarios(containerId, funcionarios) {
+  renderizarFuncionarios(containerId, funcionarios, mapaColetores) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -128,12 +128,15 @@ const Gestor = {
         }
       }
 
+      const coletor = mapaColetores ? mapaColetores[String(func.codigo).trim().toUpperCase()] : null;
+
       return `
         <div class="card func-card" data-codigo="${func.codigo}">
           <div class="status-dot ${statusClasse}"></div>
           <div class="func-info">
             <div class="func-name">${func.nome}</div>
             <div class="func-status">${statusTexto}</div>
+            ${coletor ? `<div class="func-coletor">Coletor: ${coletor.coletor}</div>` : ''}
           </div>
           ${tempoTexto ? `<div class="func-time">${tempoTexto}</div>` : ''}
         </div>

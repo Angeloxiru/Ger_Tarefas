@@ -23,6 +23,16 @@ const API = {
     return await this._executar(() => this._fetchGet(url, CONFIG.REQUEST_TIMEOUT), url, null);
   },
 
+  // GET com retry em outra URL base (ex.: CONFIG.COLETORES_API_URL)
+  async getUrl(baseUrl, params) {
+    const query = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    const url = `${baseUrl}?${query}`;
+    return await this._executar(() => this._fetchGet(url, CONFIG.REQUEST_TIMEOUT), url, null);
+  },
+
   // POST com retry automatico
   async post(dados) {
     return await this._executar(() => this._fetchPost(dados), null, dados);

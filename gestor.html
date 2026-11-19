@@ -254,8 +254,8 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="js/config.js?v=9"></script>
+  <script src="js/vendor/html5-qrcode.min.js?v=10"></script>
+  <script src="js/config.js?v=10"></script>
   <script>
     (function() {
       var stored = localStorage.getItem('app_version');
@@ -268,13 +268,14 @@
       }
     })();
   </script>
-  <script src="js/api.js?v=9"></script>
-  <script src="js/auth.js?v=9"></script>
-  <script src="js/scanner.js?v=9"></script>
-  <script src="js/tarefas.js?v=9"></script>
-  <script src="js/carregamento.js?v=9"></script>
-  <script src="js/gestor.js?v=9"></script>
-  <script src="js/ui.js?v=9"></script>
+  <script src="js/api.js?v=10"></script>
+  <script src="js/auth.js?v=10"></script>
+  <script src="js/scanner.js?v=10"></script>
+  <script src="js/tarefas.js?v=10"></script>
+  <script src="js/carregamento.js?v=10"></script>
+  <script src="js/gestor.js?v=10"></script>
+  <script src="js/ui.js?v=10"></script>
+  <script src="js/coletor.js?v=10"></script>
   <script>
     let funcionario = null;
     let gestorRegistroAtual = null;
@@ -284,6 +285,10 @@
 
       funcionario = Auth.obterSessao();
       Auth.atualizarHeader();
+
+      // Coletor: no coletor vinculado o painel fica bloqueado ate a retirada;
+      // no computador (sem vinculo) nada muda (js/coletor.js)
+      Coletor.prepararPainel();
 
       const hoje = new Date();
       const mesPassado = new Date(hoje);
@@ -336,7 +341,11 @@
         });
       }
 
-      Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios);
+      // Coletor em uso por cada funcionario (planilha de coletores)
+      let mapaColetores = {};
+      try { mapaColetores = await Coletor.mapaEmUso(); } catch (e) {}
+
+      Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios, mapaColetores);
     }
 
     // === TAREFAS DO GESTOR ===
