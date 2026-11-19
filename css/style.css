@@ -1164,3 +1164,25 @@ body.coletor-bloqueado .coletor-protegido {
   color: #0b5e42;
   margin-top: 2px;
 }
+
+/* ===========================================
+   Perfil ADM (js/adm.js)
+   =========================================== */
+/* ADM tem 8 abas: duas linhas de 4 */
+.tabs.tabs-adm { flex-wrap: wrap; }
+.tabs.tabs-adm .tab { flex: 1 0 25%; }
+.adm-acoes { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.adm-acoes .btn { width: auto; }
+.adm-resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.adm-resumo .card { margin-bottom: 0; padding: 10px 6px; }
+.adm-num { font-size: 1.5rem; font-weight: 700; color: #333; }
+.adm-num.verde { color: #0d9f6e; } .adm-num.azul { color: #1a73e8; } .adm-num.vermelho { color: #ef4444; }
+.adm-rot { font-size: 0.75rem; color: #666; }
+.adm-datas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.adm-contagem { font-size: 0.85rem; color: #666; margin: 8px 0; }
+.adm-oc { margin-bottom: 8px; }
+.adm-oc-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.adm-oc-data { font-size: 0.75rem; color: #666; }
+.adm-oc-quem { font-size: 0.9rem; margin-bottom: 4px; }
+.adm-oc-desc { font-size: 0.85rem; color: #444; }
+.adm-nota { font-size: 0.8rem; color: #666; margin-top: 12px; }

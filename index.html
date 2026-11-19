@@ -71,14 +71,14 @@
 
     <div id="error-actions" class="error-actions hidden" style="text-align:center;margin-top:12px;">
       <button class="btn btn-primary" onclick="recarregarPagina()" style="width:auto;">Tentar de Novo</button>
-      <button class="btn btn-outline" onclick="aqueceGAS()" style="width:auto;margin-left:8px;">Ativar Servidor</button>
+      <button class="btn btn-outline" onclick="aqueceGAS()" style="width:auto;margin-left:8px;">Testar Conexão</button>
     </div>
 
     <div id="app-version" class="app-version"></div>
   </div>
 
-  <script src="js/vendor/html5-qrcode.min.js?v=10"></script>
-  <script src="js/config.js?v=10"></script>
+  <script src="js/vendor/html5-qrcode.min.js?v=11"></script>
+  <script src="js/config.js?v=11"></script>
   <script>
     // Guard de versao: detecta novo deploy e recarrega uma vez
     (function() {
@@ -92,14 +92,16 @@
       }
     })();
   </script>
-  <script src="js/api.js?v=10"></script>
-  <script src="js/auth.js?v=10"></script>
-  <script src="js/scanner.js?v=10"></script>
-  <script src="js/coletor.js?v=10"></script>
+  <script src="js/db.js?v=11"></script>
+  <script src="js/backend.js?v=11"></script>
+  <script src="js/api.js?v=11"></script>
+  <script src="js/auth.js?v=11"></script>
+  <script src="js/scanner.js?v=11"></script>
+  <script src="js/coletor.js?v=11"></script>
   <script>
     if (Auth.estaLogado()) {
       const func = Auth.obterSessao();
-      window.location.href = func.perfil === 'gestor' ? 'gestor.html' : 'painel.html';
+      window.location.href = (func.perfil === 'gestor' || func.perfil === 'adm') ? 'gestor.html' : 'painel.html';
     }
 
     if (new URLSearchParams(window.location.search).get('motivo') === 'inatividade') {
@@ -137,28 +139,16 @@
       if (el) el.textContent = 'Versão ' + CONFIG.APP_VERSION;
     })();
 
-    // Aquecer o GAS na abertura (ping silencioso)
-    (async function aqueceGASNaAbertura() {
-      try {
-        await fetch(CONFIG.API_URL + '?acao=verificar_cracha&codigo=PING', {
-          method: 'GET',
-          signal: AbortSignal.timeout(3000)
-        }).catch(() => {});
-      } catch (e) {}
-    })();
-
+    // Testa a conexao com o banco (botao "Testar Conexão")
     function aqueceGAS() {
-      mostrarMsg('Ativando servidor...', 'info');
+      mostrarMsg('Testando conexão...', 'info');
       document.getElementById('error-actions').classList.add('hidden');
       (async () => {
-        try {
-          await fetch(CONFIG.API_URL + '?acao=verificar_cracha&codigo=PING', {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000)
-          });
-          mostrarMsg('Servidor ativado. Tente novamente.', 'success');
-        } catch (e) {
-          mostrarMsg('Servidor indisponível. Tente em alguns segundos.', 'error');
+        const r = await API.get({ acao: 'versao' });
+        if (r && r.sucesso) {
+          mostrarMsg('Conexão OK. Tente novamente.', 'success');
+        } else {
+          mostrarMsg('Sem conexão com o banco. Verifique o WiFi.', 'error');
           document.getElementById('error-actions').classList.remove('hidden');
         }
       })();
@@ -320,19 +310,6 @@
 
     document.getElementById('input-senha').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') fazerLogin();
-    });
-
-    // Ao voltar da tela de bloqueio/background, forcar conexão nova (mata socket morto)
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        const randomSeed = '?' + Math.random();
-        const cacheBuster = CONFIG.API_URL.includes('?') ? '&' : '?';
-        fetch(CONFIG.API_URL + cacheBuster + 'cache=' + Date.now(), {
-          method: 'GET',
-          cache: 'no-store',
-          signal: AbortSignal.timeout(2000)
-        }).catch(() => {});
-      }
     });
 
     if ('serviceWorker' in navigator) {

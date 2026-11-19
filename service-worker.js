@@ -4,7 +4,7 @@
 // Network-first evita o PWA ficar preso em versao antiga (causa do "trava no login").
 
 // Bumpar junto com CONFIG.APP_VERSION em config.js a cada deploy
-const CACHE_NAME = 'ger-tarefas-v10';
+const CACHE_NAME = 'ger-tarefas-v11';
 
 // Tempo maximo aguardando a rede antes de cair pro cache (shell)
 const SHELL_TIMEOUT = 4000;
@@ -17,6 +17,8 @@ const ASSETS_ESTATICOS = [
   './gestor.html',
   './css/style.css',
   './js/config.js',
+  './js/db.js',
+  './js/backend.js',
   './js/api.js',
   './js/auth.js',
   './js/tarefas.js',
@@ -25,6 +27,7 @@ const ASSETS_ESTATICOS = [
   './js/scanner.js',
   './js/ui.js',
   './js/coletor.js',
+  './js/adm.js',
   './js/vendor/html5-qrcode.min.js',
   './manifest.json',
   './icon-192.png',
@@ -116,9 +119,8 @@ function networkFirst(request) {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // API GAS (script.google.com / googleusercontent): sempre network direto
-  if (url.hostname.includes('script.google.com') ||
-      url.hostname.includes('script.googleusercontent.com')) {
+  // Banco Turso: sempre direto na rede, nunca cache
+  if (url.hostname.endsWith('turso.io')) {
     return;
   }
 

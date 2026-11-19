@@ -32,6 +32,39 @@
       <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Histórico</button>
       <button class="tab" data-tab="alertas" onclick="trocarTab('alertas')">Alertas</button>
       <button class="tab" data-tab="raiox" onclick="trocarTab('raiox')">Raio X</button>
+      <button class="tab tab-adm hidden" data-tab="adm-coletores" onclick="trocarTab('adm-coletores')">Coletores</button>
+      <button class="tab tab-adm hidden" data-tab="adm-irregularidades" onclick="trocarTab('adm-irregularidades')">Irregularidades</button>
+      <button class="tab tab-adm hidden" data-tab="adm-exportacao" onclick="trocarTab('adm-exportacao')">Exportação</button>
+    </div>
+
+    <!-- Abas exclusivas do perfil ADM (js/adm.js) -->
+    <div id="tab-adm-coletores" class="tab-content">
+      <div class="adm-acoes"><button class="btn btn-outline" onclick="Adm.carregarColetores()">Atualizar</button></div>
+      <div id="adm-coletores-lista"></div>
+    </div>
+
+    <div id="tab-adm-irregularidades" class="tab-content">
+      <div class="card">
+        <div class="adm-datas">
+          <div class="form-group"><label for="adm-oc-inicio">Data início</label><input type="date" id="adm-oc-inicio"></div>
+          <div class="form-group"><label for="adm-oc-fim">Data fim</label><input type="date" id="adm-oc-fim"></div>
+        </div>
+        <button class="btn btn-primary" onclick="Adm.carregarOcorrencias()">Buscar</button>
+      </div>
+      <div id="adm-oc-lista"></div>
+    </div>
+
+    <div id="tab-adm-exportacao" class="tab-content">
+      <div class="card">
+        <h3 class="card-title mb-12">Exportar tarefas finalizadas (.xlsx)</h3>
+        <div class="adm-datas">
+          <div class="form-group"><label for="adm-exp-inicio">Data início</label><input type="date" id="adm-exp-inicio"></div>
+          <div class="form-group"><label for="adm-exp-fim">Data fim</label><input type="date" id="adm-exp-fim"></div>
+        </div>
+        <button class="btn btn-success" onclick="Adm.exportar()">Gerar Excel</button>
+        <div id="adm-exp-msg" class="msg hidden" style="margin-top:12px;"></div>
+        <p class="adm-nota">Colunas: Tarefas Diárias, Qtd de Tarefas, Qtd Itens (parte de cada pessoa na carga), Soma de Tempo, Volume por hora, Nome do funcionário e Data.</p>
+      </div>
     </div>
 
     <!-- Tab: Tempo Real -->
@@ -254,8 +287,8 @@
     </div>
   </div>
 
-  <script src="js/vendor/html5-qrcode.min.js?v=10"></script>
-  <script src="js/config.js?v=10"></script>
+  <script src="js/vendor/html5-qrcode.min.js?v=11"></script>
+  <script src="js/config.js?v=11"></script>
   <script>
     (function() {
       var stored = localStorage.getItem('app_version');
@@ -268,14 +301,17 @@
       }
     })();
   </script>
-  <script src="js/api.js?v=10"></script>
-  <script src="js/auth.js?v=10"></script>
-  <script src="js/scanner.js?v=10"></script>
-  <script src="js/tarefas.js?v=10"></script>
-  <script src="js/carregamento.js?v=10"></script>
-  <script src="js/gestor.js?v=10"></script>
-  <script src="js/ui.js?v=10"></script>
-  <script src="js/coletor.js?v=10"></script>
+  <script src="js/db.js?v=11"></script>
+  <script src="js/backend.js?v=11"></script>
+  <script src="js/api.js?v=11"></script>
+  <script src="js/auth.js?v=11"></script>
+  <script src="js/scanner.js?v=11"></script>
+  <script src="js/tarefas.js?v=11"></script>
+  <script src="js/carregamento.js?v=11"></script>
+  <script src="js/gestor.js?v=11"></script>
+  <script src="js/ui.js?v=11"></script>
+  <script src="js/coletor.js?v=11"></script>
+  <script src="js/adm.js?v=11"></script>
   <script>
     let funcionario = null;
     let gestorRegistroAtual = null;
@@ -289,6 +325,9 @@
       // Coletor: no coletor vinculado o painel fica bloqueado ate a retirada;
       // no computador (sem vinculo) nada muda (js/coletor.js)
       Coletor.prepararPainel();
+
+      // Abas do ADM (Coletores, Irregularidades, Exportação)
+      Adm.iniciar();
 
       const hoje = new Date();
       const mesPassado = new Date(hoje);
@@ -758,6 +797,10 @@
         gestorVerificarStatus();
       } else if (tabId === 'alertas') {
         carregarAlertasGestor();
+      } else if (tabId === 'adm-coletores') {
+        Adm.carregarColetores();
+      } else if (tabId === 'adm-irregularidades') {
+        Adm.carregarOcorrencias();
       } else if (tabId === 'raiox') {
         raioxPeriodo = null;
         document.querySelectorAll('.btn-periodo').forEach(b => b.classList.remove('ativo'));
