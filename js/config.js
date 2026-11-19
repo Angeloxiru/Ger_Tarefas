@@ -3,14 +3,14 @@
 
 const CONFIG = {
   // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v10',
+  APP_VERSION: 'v11',
 
-  // URL do Google Apps Script publicado como Web App
-  API_URL: 'https://script.google.com/macros/s/AKfycbwEiDhYoJPRPUdi7rjXe8k18K5eNmSailG2hChiO4EM44KJeS8e9MD0kFDQBVpDGdXz/exec',
-
-  // URL do Web App do controle de coletores (Ger_Gestao_Coletores).
-  // Os registros de retirada/devolucao continuam na planilha de coletores.
-  COLETORES_API_URL: 'https://script.google.com/macros/s/AKfycby1ZZ11PbphqiPKomB21401DLQDBRFb7WnfyvLx-B9SAxQQQhAOxiVQE-uh43N7eCnGlw/exec',
+  // Banco de dados Turso (desde a v11 o app fala direto com o banco).
+  // ATENCAO: este token da leitura e escrita no banco e fica visivel no repositorio
+  // publico (risco assumido pelo responsavel). Para trocar: gere um token novo no
+  // Turso, cole aqui, publique e invalide o antigo.
+  TURSO_URL: 'libsql://tarefas-angeloxiru.aws-us-east-1.turso.io',
+  TURSO_TOKEN: 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTUxMTY0MTgsImlkIjoiMDFhMWY1NDUtY2QwMS03ZGRmLTlhYmEtNTZkZTFlMzdjNjZmIiwia2lkIjoibzJ2UkRHUzNLTFFjbGZCUlVRQV9iWDZDRzJYRF94cnpQMlcyYWl2Q2d2WSIsInJpZCI6IjE0NDg2MGQyLWZiZTQtNGEyMC05OGZkLTE1N2FlNGEwNmIzNyJ9.b-S90Rv8ZsdsMxifU9dGZ_eYxCK9aBqQNkH1-6n2bJGvC-71rlX2OdglilRAuoDHLOImrWIgMVoRczKQqpnGCw',
 
   // Coletor: leituras erradas seguidas antes da tela "Chame o responsavel"
   COLETOR_TENTATIVAS_MAX: 3,

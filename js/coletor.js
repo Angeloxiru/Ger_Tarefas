@@ -1,7 +1,7 @@
 // coletor.js - Retirada e devolucao do coletor dentro do app Tarefas
 //
-// Os registros continuam na planilha do Ger_Gestao_Coletores: este modulo chama
-// o Web App de coletores (CONFIG.COLETORES_API_URL, parametro "api").
+// Desde a v11 os registros ficam no banco Turso (tabelas coletores, coletores_log
+// e ocorrencias), pelas acoes coletor_* do js/backend.js.
 //
 // Regras (aprovadas na simulacao de telas):
 // - Cada aparelho e vinculado UMA vez a um coletor, lendo o QR "COLETOR:<nome>".
@@ -60,14 +60,11 @@ const Coletor = {
   // ================= API (Ger_Gestao_Coletores) =================
 
   async _api(params) {
-    if (!CONFIG.COLETORES_API_URL) {
-      return { sucesso: false, mensagem: 'Endereço do controle de coletores não configurado.' };
-    }
-    try {
-      return await API.getUrl(CONFIG.COLETORES_API_URL, params);
-    } catch (e) {
-      return { sucesso: false, mensagem: 'Sem conexão. Verifique o WiFi e tente novamente.' };
-    }
+    const p = Object.assign({}, params);
+    if (p.acao !== undefined) p.movimento = p.acao;   // retirada | devolucao
+    p.acao = 'coletor_' + p.api;
+    delete p.api;
+    return await Backend.executar(p);
   },
 
   _nonce() {
@@ -245,7 +242,7 @@ const Coletor = {
   async verificarAposLogin(func) {
     const vinculo = this.obterVinculo();
     if (!vinculo) {
-      if (func.perfil === 'gestor') return { liberado: true }; // gestor no computador
+      if (func.perfil === 'gestor' || func.perfil === 'adm') return { liberado: true }; // gestor/ADM no computador
       return {
         liberado: false,
         mensagem: 'Este aparelho ainda não foi vinculado a um coletor. Chame o responsável para ler o QR de configuração.'
@@ -324,7 +321,11 @@ const Coletor = {
         input.value = '';
         this.vincular(v);
       });
-      setTimeout(() => input.focus(), 50);
+      // So puxa o cursor se ninguem estiver digitando em outro campo
+      setTimeout(() => {
+        const ativo = document.activeElement;
+        if (!ativo || ativo === document.body) input.focus();
+      }, 50);
       return;
     }
 

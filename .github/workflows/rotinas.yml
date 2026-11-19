@@ -1,0 +1,28 @@
+# Rotinas do app Tarefas (substituem os gatilhos do Google Apps Script).
+# Roda a cada 30 minutos: timeout de tarefas, alerta de coletor com mais de 6h
+# e limpeza do log de coletores (7 dias) e das irregularidades (45 dias).
+# Tambem pode ser disparada manualmente em Actions > Rotinas > Run workflow.
+name: Rotinas
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rotinas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Executar rotinas
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+        run: node scripts/rotinas.js

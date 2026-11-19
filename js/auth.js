@@ -41,7 +41,12 @@ const Auth = {
 
   eGestor() {
     const func = this.obterSessao();
-    return func && func.perfil === 'gestor';
+    return func && (func.perfil === 'gestor' || func.perfil === 'adm');
+  },
+
+  eAdm() {
+    const func = this.obterSessao();
+    return func && func.perfil === 'adm';
   },
 
   logout() {
@@ -70,7 +75,7 @@ const Auth = {
         }
       }
 
-      if (dados.dados.perfil === 'gestor') {
+      if (dados.dados.perfil === 'gestor' || dados.dados.perfil === 'adm') {
         window.location.href = 'gestor.html';
       } else {
         window.location.href = 'painel.html';
@@ -88,12 +93,13 @@ const Auth = {
 
     const func = this.obterSessao();
 
-    if (paginaAtual === 'painel' && func.perfil === 'gestor') {
+    const gestor = func.perfil === 'gestor' || func.perfil === 'adm';
+    if (paginaAtual === 'painel' && gestor) {
       window.location.href = 'gestor.html';
       return false;
     }
 
-    if (paginaAtual === 'gestor' && func.perfil !== 'gestor') {
+    if (paginaAtual === 'gestor' && !gestor) {
       window.location.href = 'painel.html';
       return false;
     }

@@ -1,12 +1,27 @@
 # Ger_Tarefas - Sistema de Registro de Atividades
 
-Sistema web para registro de atividades operacionais em tempo real, utilizado por 31 a 50 funcionarios atraves de coletores Zebra MC22.
+Sistema web para registro de atividades operacionais em tempo real, utilizado por 31 a 50 funcionarios atraves de coletores Zebra MC22. Inclui o controle de retirada e devolucao dos coletores.
 
-Desde a v10 o app tambem registra a **retirada e a devolucao do coletor**. Os registros continuam
-na planilha do sistema de coletores (repositorio `Ger_Gestao_Coletores`), que o app chama pela API
-dele. Ver a secao [Controle de coletor](#controle-de-coletor).
+**Stack (desde a v11):** Frontend (GitHub Pages) + Banco de dados **Turso** (libSQL/SQLite) + rotinas no **GitHub Actions**.
+O Google Apps Script e as planilhas Google nao sao mais usados (a pasta `apps-script/` fica so como historico).
 
-**Stack:** Frontend (GitHub Pages) + Backend (Google Apps Script) + Banco (Google Sheets)
+---
+
+## Arquitetura
+
+```
+Coletor / computador (app no GitHub Pages)
+        |  HTTPS, direto
+        v
+Banco Turso  <----  GitHub Actions a cada 30 min (timeout, alerta 6h, limpeza)
+```
+
+- O app fala **direto com o banco**: cada acao e uma requisicao HTTPS ao Turso (40 a 200 ms),
+  sem a "partida a frio" de varios segundos do Apps Script.
+- As regras ficam em `js/backend.js` (o mesmo codigo roda no navegador e nas rotinas).
+- O token do banco fica em `js/config.js`. **Atencao:** o repositorio e publico e o token da
+  leitura e escrita. Esse risco foi assumido. Para trocar o token, veja "Trocar o token do banco".
+- Cadastros (funcionarios, tarefas, docas, coletores) sao feitos direto pelo **console do Turso**.
 
 ---
 
@@ -14,156 +29,140 @@ dele. Ver a secao [Controle de coletor](#controle-de-coletor).
 
 ```
 Ger_Tarefas/
-├── index.html              # Login (scan QRcode cracha + senha opcional)
-├── painel.html             # Painel do funcionario (tarefas + alertas)
+├── index.html              # Login (cracha + senha opcional) + vinculo do coletor
+├── painel.html             # Painel do funcionario (tarefas + alertas + coletor)
 ├── carregamento.html       # Fluxo: Doca -> Carga -> Andamento -> Resultado
-├── gestor.html             # Painel do gestor (5 abas)
+├── gestor.html             # Painel do gestor (5 abas) + 3 abas do ADM
 │
-├── css/
-│   └── style.css           # Estilos responsivos (tela 4.3" MC22)
+├── css/style.css           # Estilos responsivos (tela 4.3" MC22)
 │
 ├── js/
-│   ├── config.js           # URL da API e constantes do sistema
-│   ├── api.js              # Comunicacao com backend (fetch + JSONP fallback + retry)
-│   ├── auth.js             # Login/logout e sessao
-│   ├── ui.js               # Modal de confirmacao customizado
-│   ├── scanner.js          # Leitura de QRcode via camera
-│   ├── tarefas.js          # Iniciar/finalizar tarefas + cronometro
-│   ├── carregamento.js     # Distribuicao de volumes entre workers
-│   ├── gestor.js           # Dashboard, historico, alertas, Raio X
+│   ├── config.js           # Endereco/token do banco e constantes do sistema
+│   ├── db.js               # Cliente HTTP do Turso (consultas, transacoes, novas tentativas)
+│   ├── backend.js          # Regras do sistema (antes no Apps Script), direto no banco
+│   ├── api.js              # Ponte: telas chamam API.get({acao}) -> backend.js
+│   ├── auth.js             # Login/logout, sessao e perfis (funcionario, gestor, adm)
 │   ├── coletor.js          # Vinculo do aparelho, retirada/devolucao do coletor
-│   └── vendor/
-│       └── html5-qrcode.min.js  # Leitor de QRcode pela camera (v2.3.8, hospedado no app)
+│   ├── adm.js              # Telas do ADM: coletores, irregularidades, exportacao
+│   ├── tarefas.js, carregamento.js, gestor.js, scanner.js, ui.js
+│   └── vendor/             # html5-qrcode (leitor de QR) e SheetJS (gera .xlsx)
 │
-├── manifest.json           # PWA manifest
-├── service-worker.js       # PWA service worker (cache-first)
-├── icon-192.png            # Icone PWA 192x192
-└── icon-512.png            # Icone PWA 512x512
+├── db/
+│   ├── schema.sql          # Tabelas, indices e views do banco
+│   ├── importar_planilhas.py  # Converte as planilhas (.xlsx) em comandos para o banco
+│   └── aplicar.js          # Cria o esquema e carrega os dados no Turso
 │
-├── apps-script/
-│   ├── Code.gs             # Roteador principal (doGet/doPost)
-│   ├── Auth.gs             # Autenticacao (cracha + senha condicional)
-│   ├── Tarefas.gs          # CRUD de tarefas e registros + distribuicao
-│   ├── Carregamento.gs     # Registro de cargas e workers
-│   ├── Gestor.gs           # Painel gestor + historico + cadastros + alertas
-│   ├── Timeout.gs          # Auto-timeout via trigger (30 min)
-│   └── Utils.gs            # Utilitarios (getSheet, buscarNomeDoca, etc)
-│
-└── README.md
+├── scripts/rotinas.js      # Rotinas agendadas (timeout, alerta 6h, limpeza)
+├── .github/workflows/rotinas.yml  # Agenda das rotinas no GitHub Actions (a cada 30 min)
+├── testes/                 # Banco Turso simulado + teste de ponta a ponta
+├── manifest.json, service-worker.js, icon-192.png, icon-512.png
+└── apps-script/            # LEGADO (Google Apps Script), nao e mais usado
 ```
 
 ---
 
-## Google Sheets - Estrutura (8 abas)
+## Banco de dados (Turso)
 
-> **Aba quente `RegistrosAbertos`:** guarda **apenas** as tarefas em andamento (poucas
-> linhas). Mesmas colunas de `Registros`. Ao finalizar ou dar timeout, a linha é **movida**
-> para `Registros` (histórico). Os caminhos de alta frequência (verificar status, iniciar,
-> painel Tempo Real e o trigger de timeout) leem só desta aba, evitando varrer o histórico
-> inteiro a cada requisição. Ver seção "Índice de tarefas abertas" abaixo.
+Endereco: `libsql://tarefas-angeloxiru.aws-us-east-1.turso.io`. Esquema completo em `db/schema.sql`.
 
+Convencoes: datas em texto ISO UTC (`2026-11-19T18:10:51.774Z`), o app converte para o horario
+de Brasilia; booleanos como 0/1; codigos sem diferenciar maiusculas.
 
-### Funcionarios
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| codigo | texto | PL4 | Codigo unico do cracha (QRcode) |
-| nome | texto | Angelo | Nome |
-| nome_completo | texto | Angelo Lopes | Nome completo |
-| cargo | texto | Operador | Cargo/funcao |
-| ativo | booleano | TRUE | Se esta ativo |
-| perfil | texto | funcionario | "funcionario" ou "gestor" |
-| senha | texto | 1234 | Senha (obrigatoria para gestores, opcional para funcionarios) |
+### Cadastros (mantidos pelo console do Turso)
+| Tabela | Colunas | Observacao |
+|---|---|---|
+| `funcionarios` | codigo (PK), nome, nome_completo, cargo, ativo, perfil, senha, criado_em | `perfil`: `funcionario`, `gestor` ou `adm`. Senha vazia = entra sem senha. Cadastro unico (tarefas e coletores) |
+| `tarefas` | id_tarefa (PK), nome, usa_qrcode_carga, tempo_maximo_min, ativa | Passou de `tempo_maximo_min`: timeout automatico |
+| `docas` | codigo (PK), nome | `codigo` e o conteudo do QR da doca |
+| `coletores` | coletor (PK), ativo, responsavel, desde, alerta_6h_em | `responsavel` vazio = na base. Mantido pelo app |
+| `config` | chave (PK), valor | |
 
-### Tarefas
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| id_tarefa | texto | T001 | Identificador unico |
-| nome | texto | Carregamento | Nome da tarefa |
-| usa_qrcode_carga | booleano | TRUE | Se exige scan de QRcode de carga |
-| tempo_maximo_min | numero | 240 | Tempo maximo em minutos |
-| ativa | booleano | TRUE | Se esta disponivel |
+### Movimento (gravado pelo app)
+| Tabela | Conteudo |
+|---|---|
+| `registros` | Todas as tarefas (abertas e encerradas). O banco **impede duas tarefas abertas para a mesma pessoa** (indice unico parcial), o que elimina as duplicatas por toque duplo |
+| `cargas` | Leituras do QR de carga (doca, volumes, ajudante) |
+| `alertas` | Alertas registrados pelo gestor |
+| `coletores_log` | Retiradas e devolucoes. **Apagado apos 7 dias** |
+| `ocorrencias` | Irregularidades dos coletores (antigo `registro_diario`). **Apagadas apos 45 dias** |
 
-### Registros
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| id_registro | texto | R20240115143022PL4 | ID unico (timestamp + codigo) |
-| codigo_func | texto | PL4 | Codigo do funcionario |
-| id_tarefa | texto | T001 | Referencia a tarefa |
-| nome_tarefa | texto | Carregamento | Nome (desnormalizado) |
-| data_inicio | datetime | 2024-01-15 14:30:22 | Quando iniciou |
-| data_fim | datetime | 2024-01-15 16:45:10 | Quando finalizou (vazio se em andamento) |
-| status | texto | em_andamento | "em_andamento", "finalizada" ou "timeout" |
-| finalizado_por | texto | funcionario | "funcionario" ou "sistema" |
-| volumes_proporcionais | numero | 245 | Volumes atribuidos ao worker (gravado na finalizacao) |
+### Views
+| View | Uso |
+|---|---|
+| `lkp_funcionarios`, `lkp_tarefas`, `lkp_docas`, `lkp_coletores` | Listas ativas para conferencia |
+| `vw_registros` | Registros com nome, carga e doca |
+| `vw_tarefas_abertas` | Tarefas em andamento, minutos decorridos e se ja venceu |
+| `vw_coletores_situacao` | Quem esta com cada coletor e ha quanto tempo |
+| `vw_exportacao` | Base da exportacao do ADM |
 
-### Cargas
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| id_registro | texto | R20240115143022PL4 | Referencia ao registro |
-| codigo_func | texto | PL4 | Quem fez o carregamento |
-| numero_carga | texto | C350 | Numero da carga (do QRcode) |
-| qtd_volumes | numero | 410 | Quantidade de volumes |
-| doca | texto | D01 | Codigo da doca (escaneado antes da carga) |
-| data_leitura | datetime | 2024-01-15 14:30:25 | Quando o QRcode foi lido |
-| ajudante | booleano | TRUE | Se ha ajudante nesta carga (maximo 1 por carga) |
-
-### Docas
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| codigo | texto | D01 | Codigo do QRcode da doca |
-| doca | texto | Doca Norte | Nome da doca exibido no sistema |
-
-### Alertas
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| id_registro | texto | A20240115143022PL4 | ID unico do alerta |
-| codigo_func | texto | PL4 | Funcionario que recebeu o alerta |
-| data_alerta | datetime | 2024-01-15 14:30:22 | Data/hora do registro |
-| descricao | texto | Atraso recorrente | Descricao do alerta |
-
-### Config
-| Coluna | Tipo | Exemplo | Descricao |
-|--------|------|---------|-----------|
-| chave | texto | timeout_padrao_min | Nome da configuracao |
-| valor | texto | 240 | Valor da configuracao |
-
-Configuracoes iniciais:
-- `timeout_padrao_min`: 240 (4 horas)
-- `intervalo_alerta_min`: 180 (3 horas)
-- `versao_sistema`: 1.0
+### Cadastrar pelo console do Turso (exemplos)
+```sql
+INSERT INTO funcionarios (codigo, nome, nome_completo, cargo, perfil) VALUES ('PL55', 'Fulano', 'Fulano de Tal', 'auxiliar', 'funcionario');
+UPDATE funcionarios SET ativo = 0 WHERE codigo = 'PL55';           -- desativar
+UPDATE funcionarios SET perfil = 'adm', senha = '1234' WHERE codigo = 'PL26';
+INSERT INTO coletores (coletor) VALUES ('GC23');
+INSERT INTO docas (codigo, nome) VALUES ('11W01401A', 'Doca 14');
+INSERT INTO tarefas (id_tarefa, nome, usa_qrcode_carga, tempo_maximo_min) VALUES ('T008', 'Inventario', 0, 240);
+```
 
 ---
 
-## Endpoints da API
+## Perfis
 
-Todos via parametro `acao` no GET. POST tambem suportado, com fallback JSONP para contornar CORS do GitHub Pages.
+| Perfil | Acesso |
+|---|---|
+| `funcionario` | Painel de tarefas, carregamento, alertas proprios, retirada/devolucao do coletor |
+| `gestor` | Painel do gestor: Tempo Real, Tarefas, Historico, Alertas, Raio X |
+| `adm` | Tudo do gestor **+** abas **Coletores** (situacao de cada coletor), **Irregularidades** (filtro por data, 45 dias) e **Exportacao** (.xlsx por periodo) |
+
+### Exportacao (ADM)
+Planilha `.xlsx` de tarefas finalizadas no periodo escolhido, com as mesmas colunas da antiga
+exportacao do Apps Script: Tarefas Diarias, Qtd de Tarefas, Qtd Itens, Soma de Tempo, Volume por
+hora, Nome do funcionario, Data. Correcoes em relacao a antiga: **Qtd Itens** e a parte de cada
+pessoa na carga (`volumes_proporcionais`), nao o total da carga; **Volume por hora** e calculado
+(itens / horas) em vez de sair sempre 0.
+
+---
+
+## Acoes do sistema (`js/backend.js`)
+
+As telas chamam `API.get({ acao, ... })` e recebem `{ sucesso, dados, mensagem }`, o mesmo formato
+do antigo Apps Script.
 
 | Acao | Descricao |
-|------|-----------|
-| `verificar_cracha` | Verifica se o cracha existe e se requer senha |
-| `login` | Valida codigo + senha (senha so exigida se cadastrada) |
-| `verificar_doca` | Valida codigo da doca e retorna o nome |
-| `listar_tarefas` | Lista tarefas ativas |
-| `status_funcionario` | Retorna tarefa em andamento (se houver) |
-| `iniciar_tarefa` | Inicia uma tarefa |
-| `finalizar_tarefa` | Finaliza tarefa e calcula distribuicao de volumes |
-| `registrar_carga` | Registra leitura do QRcode de carga + doca + ajudante |
-| `workers_carga` | Workers da mesma carga + flag ajudante (monitoramento tempo real) |
-| `distribuicao_carga` | Distribuicao calculada de volumes |
-| `painel_gestor` | Visao geral de todos os funcionarios |
-| `historico` | Registros filtrados por data e funcionario |
-| `registrar_alerta` | Registra alerta para um funcionario |
-| `listar_alertas` | Lista alertas (todos ou de um funcionario) |
-| `cadastrar_funcionario` | Cadastra novo funcionario (com senha) |
-| `cadastrar_tarefa` | Cadastra nova tarefa |
-| `raiox` | Resumo por periodo (equipe ou individual) — ver secao Raio X |
+|---|---|
+| `verificar_cracha`, `login` | Cracha, senha (se cadastrada) e perfil |
+| `listar_tarefas`, `status_funcionario` | Tarefas ativas; tarefa aberta (ja encerra por timeout se venceu) |
+| `iniciar_tarefa`, `finalizar_tarefa` | Inicia/finaliza; no carregamento calcula e grava a distribuicao de volumes |
+| `verificar_doca`, `registrar_carga`, `workers_carga`, `distribuicao_carga` | Fluxo de carregamento |
+| `painel_gestor`, `historico`, `raiox` | Painel do gestor |
+| `registrar_alerta`, `listar_alertas` | Alertas |
+| `cadastrar_funcionario`, `cadastrar_tarefa` | Cadastros pelo app (opcional; o padrao e o console) |
+| `coletor_status`, `coletor_registrar`, `coletor_assumir`, `coletor_evento`, `coletor_lista` | Controle de coletor |
+| `adm_coletores`, `adm_ocorrencias`, `adm_exportacao` | Telas do ADM |
+| `versao` | Versao do backend (`turso-1`) |
 
-Formato de resposta:
-```json
-{ "sucesso": true, "dados": { ... }, "mensagem": "..." }
-```
+Operacoes que mexem em mais de uma tabela (retirar, devolver, assumir coletor, gravar volumes)
+rodam numa **transacao**: ou grava tudo ou nada. Se duas pessoas tentarem retirar o mesmo coletor
+ao mesmo tempo, so a primeira consegue.
 
-Comunicacao: `api.js` tenta `fetch()` primeiro; se falhar por CORS, usa JSONP (injeta `<script>` com callback). Acoes de escrita (POST) tambem funcionam via GET como fallback.
+---
+
+## Rotinas agendadas (GitHub Actions)
+
+`.github/workflows/rotinas.yml` roda `scripts/rotinas.js` a cada 30 minutos:
+1. Encerra por timeout as tarefas que passaram de `tempo_maximo_min` (e recalcula a carga).
+2. Anota em `ocorrencias` o coletor fora da base ha mais de 6h (uma vez por retirada).
+3. Apaga `coletores_log` com mais de 7 dias e `ocorrencias` com mais de 45 dias.
+
+Alem disso, o proprio app encerra uma tarefa vencida assim que alguem consulta o status dela ou
+abre o painel do gestor, entao o timeout nao depende do horario exato da rotina.
+
+- Para rodar na hora: GitHub > Actions > Rotinas > **Run workflow**.
+- O GitHub pode atrasar execucoes agendadas em alguns minutos e **desativa agendamentos de
+  repositorios sem atividade por 60 dias** (reative em Actions se acontecer).
+- O token vem de `js/config.js`. Se preferir, crie os secrets `TURSO_URL` e `TURSO_TOKEN` no
+  repositorio (Settings > Secrets and variables > Actions); eles tem prioridade.
 
 ---
 
@@ -209,16 +208,15 @@ Em algumas cargas, um ajudante auxiliar pode participar do carregamento:
 
 ## Controle de coletor
 
-O controle de quem esta com cada coletor, que antes era feito numa pagina web separada, agora
-acontece dentro do app. **Os registros continuam na planilha de coletores** (abas `Log`,
-`Coletores`, `registro_diario`), com os mesmos gatilhos (alerta de 6h e resumo diario por e-mail)
-e o mesmo painel administrativo. O app chama o Web App de coletores pela URL
-`CONFIG.COLETORES_API_URL` (em `js/config.js`), parametro `api` (ver README do `Ger_Gestao_Coletores`).
+O controle de quem esta com cada coletor acontece dentro do app (desde a v10). Desde a v11 os
+registros ficam no banco (tabelas `coletores`, `coletores_log` e `ocorrencias`). O antigo sistema
+`Ger_Gestao_Coletores` e o e-mail diario foram desativados: as irregularidades ficam na aba
+**Irregularidades** do perfil ADM e o painel de coletores na aba **Coletores**.
 
 ### Vinculo do aparelho (uma vez por coletor)
 - Um navegador nao consegue ler numero de serie/IMEI do aparelho. Por isso cada coletor e
   identificado lendo, uma unica vez, um **QR de configuracao** com o texto `COLETOR:<nome>`, onde
-  `<nome>` e exatamente o nome do coletor na aba `Coletores` (ex.: `COLETOR:COLETOR 07`).
+  `<nome>` e exatamente o nome do coletor na tabela `coletores` (ex.: `COLETOR:GC07`).
 - O QR pode ser lido no quadro "Coletor nao vinculado" ou no proprio campo do cracha da tela de login.
   O app confere se o coletor existe antes de gravar.
 - O vinculo fica no `localStorage` do aparelho: **nao expira**, sobrevive a desligar o coletor e
@@ -230,10 +228,10 @@ e o mesmo painel administrativo. O app chama o Web App de coletores pela URL
 |---|---|
 | Coletor na Base | Painel bloqueado: so o botao **Retirar** funciona |
 | Coletor com a propria pessoa | Entra direto, com o botao **Devolver** no rodape |
-| Coletor com outra pessoa **sem** tarefa aberta | "Fulano e responsavel por este coletor. Deseja assumir?" **Sim**: devolucao para Fulano + retirada para quem entrou + ocorrencia no `registro_diario`. **Nao**: volta ao login |
+| Coletor com outra pessoa **sem** tarefa aberta | "Fulano e responsavel por este coletor. Deseja assumir?" **Sim**: devolucao para Fulano + retirada para quem entrou + ocorrencia em `ocorrencias`. **Nao**: volta ao login |
 | Coletor com outra pessoa **com** tarefa aberta | Tela vermelha "Fulano e responsavel por este coletor e esta executando tarefas!" por 10s e volta ao login |
 | Aparelho sem vinculo, funcionario | Nao entra: pede o QR de configuracao |
-| Aparelho sem vinculo, gestor (computador) | Entra normalmente, sem controle de coletor |
+| Aparelho sem vinculo, gestor ou ADM (computador) | Entra normalmente, sem controle de coletor |
 
 - **Retirar** e **Devolver** abrem uma caixa de leitura. O QR da estacao e reconhecido como
   `retirada` ou `devolucao`, com ou sem acento e em qualquer combinacao de maiusculas (mesma regra
@@ -243,8 +241,8 @@ e o mesmo painel administrativo. O app chama o Web App de coletores pela URL
 - **Gestor no coletor vinculado** segue a mesma regra do funcionario: todo o painel fica bloqueado
   ate a retirada.
 - **Leitura errada** (QR de devolucao ao retirar, de retirada ao devolver, ou qualquer outro codigo):
-  nada muda na posse, a mensagem aparece na caixa com "Tentativa N de 3", e a leitura e anotada no
-  `registro_diario` com o conteudo lido (para treinamento). Na 3a leitura errada seguida a caixa
+  nada muda na posse, a mensagem aparece na caixa com "Tentativa N de 3", e a leitura e anotada em
+  `ocorrencias` com o conteudo lido (para treinamento). Na 3a leitura errada seguida a caixa
   fecha e aparece a tela amarela "Chame o responsavel"; a contagem recomeca na proxima vez.
 - QR da estacao lido no campo do cracha: "Este e o QR da base de coletores. Primeiro leia o seu cracha".
 - **Tempo Real do gestor** mostra o coletor que cada funcionario esta usando.
@@ -252,15 +250,11 @@ e o mesmo painel administrativo. O app chama o Web App de coletores pela URL
 ### Configuracoes (`js/config.js`)
 | Campo | Padrao | Descricao |
 |---|---|---|
-| `COLETORES_API_URL` | URL `/exec` do Web App de coletores | Mesma implantacao usada pelos coletores |
 | `COLETOR_TENTATIVAS_MAX` | 3 | Leituras erradas seguidas antes da tela "Chame o responsavel" |
 | `COLETOR_AVISO_BLOQUEIO_S` | 10 | Segundos do aviso "esta executando tarefas" |
 | `COLETOR_CONFIRMA_DEVOLUCAO_S` | 3 | Segundos da confirmacao de devolucao |
 
-> **Cadastro de funcionarios:** a planilha de coletores tem a propria aba `Funcionarios`
-> (`CodFun`, `Nome`). Um funcionario novo precisa estar cadastrado **nas duas planilhas**, com o
-> mesmo codigo do cracha, senao a retirada responde "Seu cracha nao esta cadastrado no controle de
-> coletores".
+> **Cadastro unico:** desde a v11 tarefas e coletores usam a mesma tabela `funcionarios`.
 
 ---
 
@@ -298,7 +292,7 @@ Workers com timeout sao excluidos da distribuicao de volumes — apenas quem fin
 
 ---
 
-## Painel do gestor (5 abas)
+## Painel do gestor (5 abas; ADM tem mais 3)
 
 1. **Tempo Real**: Lista de funcionarios com status (ocioso/em andamento/alerta/timeout), filtros por tarefa e status, mostra doca e carga quando aplicavel
 2. **Tarefas**: Mesmo painel do funcionario (Carregamento em destaque + Outras Tarefas) — gestores tambem executam tarefas
@@ -334,9 +328,9 @@ Ferramenta de analise disponivel no painel do gestor (aba "Raio X").
 ## Nomes vs codigos
 
 O sistema armazena codigos internamente mas exibe **nomes** no frontend:
-- **Funcionarios**: codigo `PL4` -> exibe `Angelo Lopes` (da aba Funcionarios)
-- **Funcionarios (nome_completo)**: codigo `PL4` -> exibe `Angelo Lopes` (da coluna `nome_completo` da aba Funcionarios)
-- **Docas**: codigo `D01` -> exibe `Doca Norte` (da aba Docas)
+- **Funcionarios**: codigo `PL4` -> exibe `Angelo Lopes` (da tabela `funcionarios`)
+- **Funcionarios (nome_completo)**: codigo `PL4` -> exibe `Angelo Lopes` (da coluna `nome_completo` da tabela `funcionarios`)
+- **Docas**: codigo `D01` -> exibe `Doca Norte` (da tabela `docas`)
 
 ---
 
@@ -354,112 +348,49 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 
 ## Configuracao e deploy
 
-### Google Sheets
-- **ID da planilha**: `1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y`
-- [Link da planilha](https://docs.google.com/spreadsheets/d/1sChUfWfpYeSM8povUqwQQT0WbsxVyniMlZSa7AOdb5Y/edit?usp=sharing)
-- 8 abas: Funcionarios, Tarefas, Registros, **RegistrosAbertos**, Cargas, Docas, Alertas, Config
-
-### Google Apps Script
-1. Copiar todos os arquivos `.gs` da pasta `apps-script/` para o projeto
-2. Publicar como Web App ("Qualquer pessoa" pode acessar)
-3. Copiar a URL gerada para `js/config.js` (campo `API_URL`)
-4. Configurar trigger: executar `configurarTriggerTimeout()` uma vez (cria trigger de 30 min)
-
-> **Versão do backend — leia antes de republicar.** O Apps Script tem seu próprio
-> marcador: `BACKEND_VERSION` no topo de `Code.gs`. **A cada mudança nos `.gs`, bumpe esse
-> valor** (ex.: `abertas-1` → `abertas-2`). Depois de republicar, o **último passo** é abrir
-> no navegador `<API_URL>?acao=versao` e confirmar que voltou o número novo. Se voltar o
-> número antigo, a implantação **não** está servindo o código novo — provavelmente o
-> `config.js` aponta para uma implantação diferente da que você editou (confira que a URL da
-> implantação ativa é idêntica ao `API_URL`). Sem esse check, é impossível saber qual código
-> o `/exec` executa — foi o que causou o incidente das tarefas nascendo na aba errada.
->
-> Atenção: republicar o `.gs` **não** troca automaticamente o que o `/exec` executa. É preciso
-> **Implantar → Gerenciar implantações → Editar (lápis) → Versão: Nova versão → Implantar**,
-> na mesma implantação cuja URL está no `config.js` (isso mantém a URL).
-5. **Índice de tarefas abertas (uma vez):** executar `inicializarPlanilha()` para criar a
-   aba `RegistrosAbertos` (não altera abas já existentes) e, numa planilha que já tem dados,
-   executar `migrarRegistrosAbertos()` **uma única vez** para mover as tarefas que estão
-   `em_andamento` de `Registros` para `RegistrosAbertos`. É idempotente — rodar de novo não
-   duplica nada. Sem esse passo, tarefas abertas antes do deploy ficariam invisíveis para o
-   status/painel até serem migradas.
-
-#### Índice de tarefas abertas (por que existe)
-
-Antes, quase toda chamada fazia `getDataRange().getValues()` na aba `Registros` inteira —
-inclusive o simples "tenho tarefa aberta?" no login. Com o histórico crescendo (~12 mil
-linhas/mês para 50 operadores), cada requisição passava a carregar meses de dados mortos.
-Agora as tarefas em andamento vivem numa aba pequena (`RegistrosAbertos`), e o custo dos
-caminhos quentes passa a ser proporcional ao número de pessoas ativas **agora**, não ao
-tamanho do histórico. Cálculos de carga (distribuição, monitoramento em tempo real) e o
-Histórico do gestor unem as duas abas quando precisam de workers finalizados e ativos juntos.
-A API pública não muda: mesmos endpoints, mesmas respostas.
-
-### Como fazer um deploy (procedimento padrao)
-
-Existem **dois** deploys independentes. Saber qual você está fazendo evita 90% dos erros.
-
-#### A) Deploy de BACKEND (mudou algum `.gs`)
-1. Copie os `.gs` alterados para o projeto Apps Script.
-2. **Bumpe `BACKEND_VERSION`** no topo de `Code.gs` (ex.: `abertas-2` → `abertas-3`).
-3. **Republique na MESMA implantação** (ver regra de ouro abaixo): Implantar → Gerenciar
-   implantações → Editar (lápis) → Versão: **Nova versão** → Implantar.
-4. **Verifique:** abra `<API_URL>?acao=versao` no navegador e confirme que voltou o número
-   novo. Se voltou o antigo, a implantação não pegou — **não avance** enquanto não bater.
-
-#### B) Deploy de FRONTEND (mudou HTML/CSS/JS)
-A cada deploy de frontend, bumpe **3 números**. O resto é automático.
+### Publicar uma versao nova (frontend)
+A cada mudanca em HTML/CSS/JS, bumpe **3 numeros**:
 
 | Arquivo | Campo | Exemplo |
 |---------|-------|---------|
-| `js/config.js` | `APP_VERSION` | `'v7'` → `'v8'` |
-| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v7'` → `'ger-tarefas-v8'` |
-| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=7` → `?v=8` |
+| `js/config.js` | `APP_VERSION` | `'v11'` -> `'v12'` |
+| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v11'` -> `'ger-tarefas-v12'` |
+| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=11` -> `?v=12` |
 
-Depois: commite, faça push para `main` e aguarde 1-2 min para o GitHub Pages processar. O
-browser detecta o novo `service-worker.js`, ativa (`skipWaiting`), apaga o cache antigo,
-notifica as abas (`SW_UPDATED`) e recarrega. O guard de versão no `localStorage` cobre
-browsers sem PWA. **Como conferir num coletor:** a tela de login mostra `Versão vX` — tem que
-exibir o número novo. Se mostrar o antigo, aquele aparelho não atualizou.
+Depois: merge na `main` e aguarde 1-2 min para o GitHub Pages processar. O service worker detecta a
+versao nova, apaga o cache antigo e recarrega. **Como conferir num coletor:** a tela de login mostra
+`Versao vX`.
 
----
+### Mudar o banco (esquema)
+Edite `db/schema.sql` e aplique (os comandos sao `CREATE ... IF NOT EXISTS`, nada e apagado):
+```bash
+NODE_USE_ENV_PROXY=1 node db/aplicar.js libsql://tarefas-angeloxiru.aws-us-east-1.turso.io <token>
+```
+Para alterar uma tabela que ja existe, rode o `ALTER TABLE` pelo console do Turso e atualize o
+`schema.sql` para ficar igual.
 
-### ⚠️ REGRA DE OURO do Apps Script — leia sempre
+### Reimportar as planilhas (virada)
+Baixe cada planilha em **Arquivo > Fazer download > Microsoft Excel (.xlsx)** e rode:
+```bash
+python3 db/importar_planilhas.py Ger_Tarefas.xlsx Controle_de_Coletores.xlsx dados.json
+node db/aplicar.js libsql://tarefas-angeloxiru.aws-us-east-1.turso.io <token> dados.json --substituir
+```
+`--substituir` apaga os dados do banco antes de carregar. Datas da planilha (horario de Brasilia)
+viram UTC; IDs de registro repetidos (toque duplo no app antigo) ganham sufixo `-2`, `-3`; a mesma
+carga lida duas vezes no mesmo registro fica so uma vez.
 
-**NUNCA crie uma implantação NOVA a cada deploy. Sempre atualize a MESMA, mantendo a URL fixa.**
+### Trocar o token do banco
+1. No painel do Turso, crie um token novo (leitura e escrita) para o banco `tarefas`.
+2. Cole em `js/config.js` (`TURSO_TOKEN`), bumpe a versao do app e publique.
+3. Depois que os coletores mostrarem a versao nova, invalide o token antigo no Turso.
 
-Por quê: cada implantação nova gera uma **URL diferente**, e as URLs antigas **continuam vivas
-rodando o código que estava nelas**. Se você troca a URL no `config.js`, os coletores com o
-`config.js` **em cache** continuam chamando a URL antiga — ou seja, um **servidor velho** — e o
-app se comporta como código antigo mesmo com o backend novo publicado. Foi exatamente isso que
-causou o incidente das "tarefas nascendo na aba `Registros`": o backend estava certo, mas os
-coletores falavam com uma implantação antiga via `config.js` cacheado.
-
-Consequências práticas:
-- **Mantenha uma única implantação** (Web App) e sempre a atualize por *Nova versão*. A URL
-  `.../exec` não muda, então o `config.js` nunca precisa mudar e cache velho continua correto.
-- **Só troque `API_URL` em último caso.** Se trocar, é **obrigatório** bumpar a versão de
-  FRONTEND (item B) no mesmo deploy, para o kill-switch limpar o cache e os coletores baixarem
-  a URL nova. Sem isso, aparelhos ficam presos na URL antiga.
-
----
-
-### Troubleshooting — "as tarefas nascem na aba errada / comportamento de código antigo"
-
-Siga nesta ordem; cada passo isola uma camada:
-
-1. **O `/exec` roda o código novo?** Abra `<API_URL>?acao=versao`.
-   - `versao_backend` é o esperado **e** `iniciar_grava_em: "RegistrosAbertos (novo)"` → o
-     backend está OK, o problema é no frontend/cache → vá ao passo 2.
-   - `versao_backend` antigo, ou `iniciar_grava_em: "Registros (ANTIGO)"` → a implantação está
-     velha ou há função duplicada num `.gs` antigo. Republique (Nova versão) e/ou remova o
-     arquivo duplicado; confirme que `function Tarefas_iniciar` existe em **um só** arquivo.
-2. **O coletor está no frontend novo?** Veja `Versão vX` na tela de login do aparelho. Se
-   estiver antiga, o `config.js` (e talvez a `API_URL`) está em cache velho. Bumpe a versão de
-   frontend (item B), faça merge na `main` e reabra o app; se persistir, limpe os dados do app.
-3. **A aba `RegistrosAbertos` está consistente?** Rode `verificarConsistencia()` no editor:
-   deve logar `0 em_andamento presos em Registros`. Se houver linhas presas (ex.: criadas
-   enquanto rodava código antigo), rode `migrarRegistrosAbertos()` para movê-las.
+### Testes
+```bash
+node --no-warnings testes/e2e.test.js
+```
+Sobe um banco Turso simulado (`testes/turso-local.js`, SQLite do Node 22+) e percorre o fluxo
+completo no Chromium (Playwright): vinculo, retirada, tarefa, carregamento, assumir coletor,
+devolucao, ADM e exportacao.
 
 ### GitHub Pages
 - Fazer merge para `main` -> deploy automatico
@@ -468,62 +399,78 @@ Siga nesta ordem; cada passo isola uma camada:
 ### Zebra MC22
 - Navegador Chrome Android, tela 4.3"
 - Camera traseira para QRcode (biblioteca html5-qrcode hospedada no proprio app, `js/vendor/`)
-- Scanner embutido envia Enter apos leitura — sistema responde automaticamente
+- Scanner embutido envia Enter apos leitura: o sistema responde automaticamente
 - Conexao WiFi
 
 ---
 
-## Requisitos de rede (liberação no WiFi/firewall)
+## Requisitos de rede (liberacao no WiFi/firewall)
 
-O app roda em WiFi corporativa que pode filtrar domínios/IPs. Libere **todos** os itens
-abaixo, senão o app quebra em pontos específicos. Tudo é **HTTPS (TCP 443)** — não há HTTP
-puro nem outras portas. Se houver filtro de DNS, esses domínios também precisam ser resolvíveis.
+Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 
-### Domínios (forma recomendada de liberar)
-
-| Domínio | Para quê | Se bloquear |
+| Dominio | Para que | Se bloquear |
 |---|---|---|
-| `angeloxiru.github.io` | Hospedagem do app (HTML/JS/CSS/ícones/manifest/SW) | app não abre |
-| `script.google.com` | Backend (Google Apps Script): login, tarefas, cargas e controle de coletores | login e todas as ações |
-| `script.googleusercontent.com` | Destino do redirect 302 das respostas do `/exec` | respostas não voltam |
+| `angeloxiru.github.io` | Hospedagem do app (HTML/JS/CSS/icones/manifest/SW) | app nao abre |
+| `tarefas-angeloxiru.aws-us-east-1.turso.io` | Banco de dados (todas as acoes) | login e todas as acoes |
 
-> O `script.googleusercontent.com` é essencial e fácil de esquecer: toda chamada ao `/exec`
-> redireciona para lá. Liberar só `script.google.com` faz o app conectar mas nenhuma resposta chegar.
+`script.google.com` e `script.googleusercontent.com` **nao sao mais necessarios** desde a v11.
 
-### IPs — preferir domínio
-
-Google/Cloudflare/Fastly usam faixas de IP dinâmicas (CDN/anycast); fixar IP quebra sozinho.
-Se o controle só aceitar IP:
-- **GitHub Pages** (estáveis, documentados): `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
-- **Google** (`script.google.com`, `script.googleusercontent.com`): sem conjunto estável — liberar por domínio, ou faixas do Google (ASN AS15169, `https://www.gstatic.com/ipranges/goog.json`).
-
-### Cuidados que derrubam o app
-
-- **Inspeção de SSL/MITM:** se o WiFi reassina certificados, pode quebrar a validação e a
-  câmera (que exige HTTPS confiável). Faça **SSL bypass** desses 3 domínios ou instale a CA do
-  proxy no coletor.
-- **Sem downgrade para HTTP:** o app só funciona em HTTPS (service worker + câmera). Portais
-  cativos que injetam conteúdo ou rebaixam a conexão quebram o PWA.
-
-### Dependências externas
-
-Desde a v10 o `html5-qrcode.min.js` (v2.3.8, licença em `js/vendor/html5-qrcode.LICENSE`) fica no
-próprio repositório e é cacheado pelo service worker. O `unpkg.com` não é mais usado: os domínios
-externos são só GitHub Pages + Google.
+- **IPs:** GitHub Pages usa `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
+  O Turso usa IPs dinamicos da AWS: libere por dominio.
+- **Inspecao de SSL/MITM:** se o WiFi reassina certificados, faca SSL bypass desses dominios ou
+  instale a CA do proxy no coletor.
+- **Sem downgrade para HTTP:** o app so funciona em HTTPS (service worker + camera).
 
 ---
 
 ## Limites e consideracoes
 
-- Google Apps Script: 6 min/execucao, ~20.000 chamadas/dia
-- Google Sheets: performance degrada acima de ~50.000 linhas por aba
-- Latencia: 1-3 segundos por requisicao
-- Historico usa cache de distribuicao por carga para evitar timeout em consultas grandes
-- Sugestao: rotina mensal para arquivar registros antigos
+- Turso (plano gratuito): limites mensais de linhas lidas/gravadas e armazenamento folgados para
+  o volume atual (~12 mil registros/mes). Acompanhe o uso no painel do Turso.
+- Latencia: 40 a 200 ms por acao (servidor nos EUA, `aws-us-east-1`).
+- Historico do gestor mostra no maximo 200 registros encerrados por busca (como antes).
+- O historico de tarefas nao e apagado; o log de coletores e (7 dias) e as ocorrencias tambem (45 dias).
 
 ---
 
 ## Historico de versoes
+
+### v11 - Banco de dados Turso (sai o Google)
+
+**Motivo:** o app ficava lento e dava "sem resposta" com o Google Apps Script + planilhas
+(partida a frio de varios segundos, leitura de abas inteiras a cada acao, limite de execucoes).
+
+**1. Banco de dados**
+- `db/schema.sql`: 10 tabelas, indices e 8 views. Cadastro unico de funcionarios para tarefas e
+  coletores; perfil novo `adm`.
+- Indice unico parcial impede duas tarefas abertas para a mesma pessoa (fim das duplicatas por
+  toque duplo, que existiam na planilha).
+- Importacao das planilhas (`db/importar_planilhas.py` + `db/aplicar.js`): 53 funcionarios,
+  6.300 registros, 1.324 cargas, 111 alertas, 23 coletores, 653 movimentos de coletor e 17 ocorrencias.
+
+**2. Regras portadas para `js/backend.js`**
+- Login, tarefas, carregamento (distribuicao de volumes identica a anterior), painel do gestor,
+  historico, alertas, Raio X e controle de coletor. Mesmo formato de resposta: as telas nao mudaram.
+- `js/db.js`: cliente HTTP do Turso com transacoes e novas tentativas automaticas.
+- `js/api.js`: as telas continuam chamando `API.get({acao})`, que agora vai direto ao banco.
+
+**3. Perfil ADM** (abas extras no painel do gestor)
+- **Coletores:** situacao de cada coletor (substitui o painel do Ger_Gestao_Coletores).
+- **Irregularidades:** ocorrencias por periodo, guardadas 45 dias (substitui o e-mail diario).
+- **Exportacao:** `.xlsx` por periodo, com Qtd Itens por pessoa e Volume por hora calculado.
+
+**4. Rotinas no GitHub Actions** (substituem os gatilhos do Google): timeout a cada 30 min,
+alerta de coletor com mais de 6h (uma vez por retirada), limpeza do log de coletores (7 dias) e
+das ocorrencias (45 dias).
+
+**5. Versao de frontend** `v10` -> `v11` (`APP_VERSION`, `CACHE_NAME`, `?v=11`).
+
+**Arquivos novos:** `db/`, `scripts/rotinas.js`, `.github/workflows/rotinas.yml`, `testes/`,
+`js/db.js`, `js/backend.js`, `js/adm.js`, `js/vendor/xlsx.full.min.js`.
+**Arquivos alterados:** `js/config.js`, `js/api.js`, `js/auth.js`, `js/coletor.js`, `css/style.css`,
+`index.html`, `painel.html`, `gestor.html`, `carregamento.html`, `service-worker.js`, `README.md`.
+
+> As secoes de versoes anteriores abaixo descrevem o sistema com Apps Script e planilhas.
 
 ### v10 — Controle de coletor dentro do app
 
