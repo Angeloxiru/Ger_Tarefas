@@ -60,6 +60,16 @@ const Auth = {
       this.salvarSessao(dados.dados);
       this.marcarAtividade();
 
+      // Controle de coletor (js/coletor.js): na base, com outra pessoa, assumir...
+      if (typeof Coletor !== 'undefined') {
+        const verif = await Coletor.verificarAposLogin(dados.dados);
+        if (!verif.liberado) {
+          sessionStorage.removeItem('funcionario');
+          sessionStorage.removeItem('atividade_ts');
+          return { sucesso: false, mensagem: verif.mensagem || '', semAcoes: true };
+        }
+      }
+
       if (dados.dados.perfil === 'gestor') {
         window.location.href = 'gestor.html';
       } else {

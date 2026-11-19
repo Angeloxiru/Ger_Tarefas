@@ -4,7 +4,7 @@
 // Network-first evita o PWA ficar preso em versao antiga (causa do "trava no login").
 
 // Bumpar junto com CONFIG.APP_VERSION em config.js a cada deploy
-const CACHE_NAME = 'ger-tarefas-v9';
+const CACHE_NAME = 'ger-tarefas-v10';
 
 // Tempo maximo aguardando a rede antes de cair pro cache (shell)
 const SHELL_TIMEOUT = 4000;
@@ -24,6 +24,8 @@ const ASSETS_ESTATICOS = [
   './js/gestor.js',
   './js/scanner.js',
   './js/ui.js',
+  './js/coletor.js',
+  './js/vendor/html5-qrcode.min.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -114,9 +116,9 @@ function networkFirst(request) {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // API GAS (script.google.com) e CDN (unpkg): sempre network direto
+  // API GAS (script.google.com / googleusercontent): sempre network direto
   if (url.hostname.includes('script.google.com') ||
-      url.hostname.includes('unpkg.com')) {
+      url.hostname.includes('script.googleusercontent.com')) {
     return;
   }
 

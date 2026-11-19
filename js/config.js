@@ -3,10 +3,23 @@
 
 const CONFIG = {
   // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v9',
+  APP_VERSION: 'v10',
 
   // URL do Google Apps Script publicado como Web App
   API_URL: 'https://script.google.com/macros/s/AKfycbwEiDhYoJPRPUdi7rjXe8k18K5eNmSailG2hChiO4EM44KJeS8e9MD0kFDQBVpDGdXz/exec',
+
+  // URL do Web App do controle de coletores (Ger_Gestao_Coletores).
+  // Os registros de retirada/devolucao continuam na planilha de coletores.
+  COLETORES_API_URL: 'https://script.google.com/macros/s/AKfycby1ZZ11PbphqiPKomB21401DLQDBRFb7WnfyvLx-B9SAxQQQhAOxiVQE-uh43N7eCnGlw/exec',
+
+  // Coletor: leituras erradas seguidas antes da tela "Chame o responsavel"
+  COLETOR_TENTATIVAS_MAX: 3,
+
+  // Coletor: segundos do aviso "responsavel esta executando tarefas" antes do logout
+  COLETOR_AVISO_BLOQUEIO_S: 10,
+
+  // Coletor: segundos da confirmacao de devolucao antes do logout
+  COLETOR_CONFIRMA_DEVOLUCAO_S: 3,
 
   // Tempo em ms para considerar alerta (3 horas = 10800000 ms)
   ALERTA_MS: 3 * 60 * 60 * 1000,

@@ -924,3 +924,243 @@ body {
 @media (min-width: 768px) {
   .container { max-width: 600px; }
 }
+
+/* ===========================================
+   Controle de coletor (js/coletor.js)
+   =========================================== */
+.coletor-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.coletor-rodape {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.coletor-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+
+.coletor-chip-nome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.coletor-chip-nome svg {
+  width: 18px;
+  height: 18px;
+}
+
+.coletor-chip-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+  text-align: right;
+}
+
+.coletor-chip.base { background: #fff7e6; border: 1px solid #f5c26b; color: #7a4a00; }
+.coletor-chip.meu { background: #e7f7ef; border: 1px solid #9fdcc0; color: #0b5e42; }
+.coletor-chip.outro { background: #eef1f5; border: 1px solid #c3cbd6; color: #3b4555; }
+.coletor-chip.nenhum { background: #eef1f5; border: 1px dashed #aab4c3; color: #556070; }
+
+.coletor-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.coletor-dot.verde { background: #0d9f6e; }
+.coletor-dot.amarelo { background: #f59e0b; }
+.coletor-dot.cinza { background: #8a94a3; }
+
+.coletor-btn-retirar svg,
+.coletor-btn-devolver svg {
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .coletor-btn-retirar { animation: pulsar 1.6s ease-in-out infinite; }
+}
+
+/* Painel bloqueado: conteudo apagado e sem clique ate a retirada */
+body.coletor-bloqueado .coletor-protegido {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  pointer-events: none;
+  user-select: none;
+}
+
+.coletor-hint {
+  font-size: 0.8rem;
+  color: #666;
+  text-align: center;
+}
+
+.coletor-scan-box {
+  border: 2px dashed #1a73e8;
+  border-radius: 10px;
+  padding: 14px 10px;
+  background: #f5f9ff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.coletor-scan-box .input-text {
+  width: 100%;
+  text-align: center;
+}
+
+.coletor-scan-icone svg {
+  width: 46px;
+  height: 46px;
+  color: #1a73e8;
+}
+
+/* Login: bloco do coletor */
+#coletor-login {
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+#coletor-login .msg {
+  margin-bottom: 0;
+}
+
+/* Caixas (leitura, assumir, aviso) */
+.coletor-modal {
+  z-index: 300;
+}
+
+.coletor-caixa {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coletor-caixa .modal-title {
+  margin-bottom: 0;
+}
+
+.coletor-caixa .msg {
+  margin-bottom: 0;
+}
+
+.coletor-caixa-texto {
+  font-size: 1rem;
+  color: #444;
+  line-height: 1.5;
+}
+
+.coletor-caixa-botoes {
+  display: flex;
+  gap: 12px;
+}
+
+.coletor-caixa-botoes .btn {
+  flex: 1;
+}
+
+.coletor-caixa-icone svg {
+  width: 56px;
+  height: 56px;
+}
+
+.coletor-caixa-icone.vermelho { color: #dc3545; }
+.coletor-caixa-icone.amarelo { color: #f59e0b; }
+
+.coletor-tentativa {
+  font-size: 0.8rem;
+}
+
+/* Telas cheias (aviso de bloqueio, devolucao, limite de tentativas) */
+.coletor-tela {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: #fff;
+}
+
+.coletor-tela.vermelho { background: #c62f3d; }
+.coletor-tela.verde { background: #0d9f6e; }
+.coletor-tela.amarelo { background: #f59e0b; color: #1f1300; }
+
+.coletor-tela-icone svg {
+  width: 72px;
+  height: 72px;
+}
+
+.coletor-tela-titulo {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.coletor-tela-texto {
+  font-size: 1rem;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+
+.coletor-tela-contador {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.coletor-tela.amarelo .coletor-tela-contador { border-color: rgba(0, 0, 0, 0.3); }
+
+.coletor-tela-botao {
+  background: #1f1300;
+  color: #fff;
+  max-width: 260px;
+}
+
+/* Tempo Real do gestor: coletor de cada funcionario */
+.func-card .func-coletor {
+  font-size: 0.75rem;
+  color: #0b5e42;
+  margin-top: 2px;
+}

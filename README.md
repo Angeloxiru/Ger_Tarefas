@@ -2,6 +2,10 @@
 
 Sistema web para registro de atividades operacionais em tempo real, utilizado por 31 a 50 funcionarios atraves de coletores Zebra MC22.
 
+Desde a v10 o app tambem registra a **retirada e a devolucao do coletor**. Os registros continuam
+na planilha do sistema de coletores (repositorio `Ger_Gestao_Coletores`), que o app chama pela API
+dele. Ver a secao [Controle de coletor](#controle-de-coletor).
+
 **Stack:** Frontend (GitHub Pages) + Backend (Google Apps Script) + Banco (Google Sheets)
 
 ---
@@ -26,7 +30,10 @@ Ger_Tarefas/
 │   ├── scanner.js          # Leitura de QRcode via camera
 │   ├── tarefas.js          # Iniciar/finalizar tarefas + cronometro
 │   ├── carregamento.js     # Distribuicao de volumes entre workers
-│   └── gestor.js           # Dashboard, historico, alertas, Raio X
+│   ├── gestor.js           # Dashboard, historico, alertas, Raio X
+│   ├── coletor.js          # Vinculo do aparelho, retirada/devolucao do coletor
+│   └── vendor/
+│       └── html5-qrcode.min.js  # Leitor de QRcode pela camera (v2.3.8, hospedado no app)
 │
 ├── manifest.json           # PWA manifest
 ├── service-worker.js       # PWA service worker (cache-first)
@@ -200,6 +207,63 @@ Em algumas cargas, um ajudante auxiliar pode participar do carregamento:
 
 ---
 
+## Controle de coletor
+
+O controle de quem esta com cada coletor, que antes era feito numa pagina web separada, agora
+acontece dentro do app. **Os registros continuam na planilha de coletores** (abas `Log`,
+`Coletores`, `registro_diario`), com os mesmos gatilhos (alerta de 6h e resumo diario por e-mail)
+e o mesmo painel administrativo. O app chama o Web App de coletores pela URL
+`CONFIG.COLETORES_API_URL` (em `js/config.js`), parametro `api` (ver README do `Ger_Gestao_Coletores`).
+
+### Vinculo do aparelho (uma vez por coletor)
+- Um navegador nao consegue ler numero de serie/IMEI do aparelho. Por isso cada coletor e
+  identificado lendo, uma unica vez, um **QR de configuracao** com o texto `COLETOR:<nome>`, onde
+  `<nome>` e exatamente o nome do coletor na aba `Coletores` (ex.: `COLETOR:COLETOR 07`).
+- O QR pode ser lido no quadro "Coletor nao vinculado" ou no proprio campo do cracha da tela de login.
+  O app confere se o coletor existe antes de gravar.
+- O vinculo fica no `localStorage` do aparelho: **nao expira**, sobrevive a desligar o coletor e
+  a atualizacoes do app. So se perde se os dados do Chrome forem apagados, o app/Chrome for
+  desinstalado ou o aparelho for resetado. Para trocar o vinculo, basta ler outro QR de configuracao.
+
+### Regras
+| Situacao ao entrar com o cracha | O que acontece |
+|---|---|
+| Coletor na Base | Painel bloqueado: so o botao **Retirar** funciona |
+| Coletor com a propria pessoa | Entra direto, com o botao **Devolver** no rodape |
+| Coletor com outra pessoa **sem** tarefa aberta | "Fulano e responsavel por este coletor. Deseja assumir?" **Sim**: devolucao para Fulano + retirada para quem entrou + ocorrencia no `registro_diario`. **Nao**: volta ao login |
+| Coletor com outra pessoa **com** tarefa aberta | Tela vermelha "Fulano e responsavel por este coletor e esta executando tarefas!" por 10s e volta ao login |
+| Aparelho sem vinculo, funcionario | Nao entra: pede o QR de configuracao |
+| Aparelho sem vinculo, gestor (computador) | Entra normalmente, sem controle de coletor |
+
+- **Retirar** e **Devolver** abrem uma caixa de leitura. O QR da estacao e reconhecido como
+  `retirada` ou `devolucao`, com ou sem acento e em qualquer combinacao de maiusculas (mesma regra
+  do sistema de coletores).
+- **Devolucao** so e aceita sem tarefa em andamento. Depois dela aparece a confirmacao verde por 3s
+  e o app faz logout.
+- **Gestor no coletor vinculado** segue a mesma regra do funcionario: todo o painel fica bloqueado
+  ate a retirada.
+- **Leitura errada** (QR de devolucao ao retirar, de retirada ao devolver, ou qualquer outro codigo):
+  nada muda na posse, a mensagem aparece na caixa com "Tentativa N de 3", e a leitura e anotada no
+  `registro_diario` com o conteudo lido (para treinamento). Na 3a leitura errada seguida a caixa
+  fecha e aparece a tela amarela "Chame o responsavel"; a contagem recomeca na proxima vez.
+- QR da estacao lido no campo do cracha: "Este e o QR da base de coletores. Primeiro leia o seu cracha".
+- **Tempo Real do gestor** mostra o coletor que cada funcionario esta usando.
+
+### Configuracoes (`js/config.js`)
+| Campo | Padrao | Descricao |
+|---|---|---|
+| `COLETORES_API_URL` | URL `/exec` do Web App de coletores | Mesma implantacao usada pelos coletores |
+| `COLETOR_TENTATIVAS_MAX` | 3 | Leituras erradas seguidas antes da tela "Chame o responsavel" |
+| `COLETOR_AVISO_BLOQUEIO_S` | 10 | Segundos do aviso "esta executando tarefas" |
+| `COLETOR_CONFIRMA_DEVOLUCAO_S` | 3 | Segundos da confirmacao de devolucao |
+
+> **Cadastro de funcionarios:** a planilha de coletores tem a propria aba `Funcionarios`
+> (`CodFun`, `Nome`). Um funcionario novo precisa estar cadastrado **nas duas planilhas**, com o
+> mesmo codigo do cracha, senao a retirada responde "Seu cracha nao esta cadastrado no controle de
+> coletores".
+
+---
+
 ## Compatibilidade com Zebra MC22
 
 O coletor Zebra MC22 envia automaticamente a tecla **Enter** apos cada leitura de QRcode. Todos os campos de input do sistema respondem ao Enter disparando a acao do botao correspondente, eliminando a necessidade de tocar na tela apos o scan:
@@ -283,6 +347,8 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 | Cracha | Codigo do funcionario | `PL4` |
 | Doca | Codigo da doca | `D01` |
 | Carga | NUMERO_CARGA\|QTD_VOLUMES | `C350\|410` |
+| Configuracao do coletor | COLETOR:NOME_DO_COLETOR | `COLETOR:COLETOR 07` |
+| Estacao de coletores | retirada / devolucao | `retirada`, `Devolução` |
 
 ---
 
@@ -401,7 +467,7 @@ Siga nesta ordem; cada passo isola uma camada:
 
 ### Zebra MC22
 - Navegador Chrome Android, tela 4.3"
-- Camera traseira para QRcode (biblioteca html5-qrcode via CDN)
+- Camera traseira para QRcode (biblioteca html5-qrcode hospedada no proprio app, `js/vendor/`)
 - Scanner embutido envia Enter apos leitura — sistema responde automaticamente
 - Conexao WiFi
 
@@ -418,9 +484,8 @@ puro nem outras portas. Se houver filtro de DNS, esses domínios também precisa
 | Domínio | Para quê | Se bloquear |
 |---|---|---|
 | `angeloxiru.github.io` | Hospedagem do app (HTML/JS/CSS/ícones/manifest/SW) | app não abre |
-| `script.google.com` | Backend (Google Apps Script): login, tarefas, cargas | login e todas as ações |
+| `script.google.com` | Backend (Google Apps Script): login, tarefas, cargas e controle de coletores | login e todas as ações |
 | `script.googleusercontent.com` | Destino do redirect 302 das respostas do `/exec` | respostas não voltam |
-| `unpkg.com` | Biblioteca do leitor de QRcode (`html5-qrcode`) | câmera/scanner |
 
 > O `script.googleusercontent.com` é essencial e fácil de esquecer: toda chamada ao `/exec`
 > redireciona para lá. Liberar só `script.google.com` faz o app conectar mas nenhuma resposta chegar.
@@ -431,21 +496,20 @@ Google/Cloudflare/Fastly usam faixas de IP dinâmicas (CDN/anycast); fixar IP qu
 Se o controle só aceitar IP:
 - **GitHub Pages** (estáveis, documentados): `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
 - **Google** (`script.google.com`, `script.googleusercontent.com`): sem conjunto estável — liberar por domínio, ou faixas do Google (ASN AS15169, `https://www.gstatic.com/ipranges/goog.json`).
-- **unpkg** (Cloudflare): anycast dinâmico — liberar por domínio.
 
 ### Cuidados que derrubam o app
 
 - **Inspeção de SSL/MITM:** se o WiFi reassina certificados, pode quebrar a validação e a
-  câmera (que exige HTTPS confiável). Faça **SSL bypass** desses 4 domínios ou instale a CA do
+  câmera (que exige HTTPS confiável). Faça **SSL bypass** desses 3 domínios ou instale a CA do
   proxy no coletor.
 - **Sem downgrade para HTTP:** o app só funciona em HTTPS (service worker + câmera). Portais
   cativos que injetam conteúdo ou rebaixam a conexão quebram o PWA.
 
-### Reduzir dependências externas (opcional)
+### Dependências externas
 
-Hoje o `unpkg.com` é a única dependência de terceiros em runtime (fora Google/GitHub). Para
-eliminá-la, hospedar o `html5-qrcode.min.js` no próprio repositório e cachear no service worker
-— aí a lista de domínios externos cai para GitHub Pages + Google.
+Desde a v10 o `html5-qrcode.min.js` (v2.3.8, licença em `js/vendor/html5-qrcode.LICENSE`) fica no
+próprio repositório e é cacheado pelo service worker. O `unpkg.com` não é mais usado: os domínios
+externos são só GitHub Pages + Google.
 
 ---
 
@@ -460,6 +524,40 @@ eliminá-la, hospedar o `html5-qrcode.min.js` no próprio repositório e cachear
 ---
 
 ## Historico de versoes
+
+### v10 — Controle de coletor dentro do app
+
+**1. Retirada e devolução do coletor (frontend)**
+- Novo `js/coletor.js`: vínculo do aparelho por QR `COLETOR:<nome>`, quadro com a situação do
+  coletor no login e no painel, botões **Retirar** e **Devolver**, pergunta "Deseja assumir?",
+  aviso de 10s quando o responsável está executando tarefas, bloqueio da devolução com tarefa
+  aberta, confirmação verde e logout após devolver, limite de 3 leituras erradas.
+- `auth.js`: depois do crachá aceito, checa o coletor antes de abrir o painel.
+- `index.html`: bloco do coletor, QR de configuração e QR da estação reconhecidos no campo do
+  crachá (campo passou de 10 para 40 caracteres).
+- `painel.html` e `gestor.html`: painel bloqueado até a retirada (no computador do gestor nada muda).
+- Tempo Real do gestor mostra o coletor de cada funcionário.
+- Registros na planilha de coletores, pela API nova do `Ger_Gestao_Coletores` (sem mudança no
+  Apps Script do Tarefas, `BACKEND_VERSION` continua o mesmo).
+
+**2. Leitor de QR hospedado no app**
+- `html5-qrcode` 2.3.8 em `js/vendor/`, no cache do service worker. `unpkg.com` saiu da lista de rede.
+
+**3. Versão de frontend**
+- `APP_VERSION` `v9` → `v10`, `CACHE_NAME` `ger-tarefas-v10`, `?v=10` nos 4 HTMLs.
+
+**Arquivos alterados:** `js/coletor.js` (novo), `js/vendor/` (novo), `js/config.js`, `js/api.js`,
+`js/auth.js`, `js/gestor.js`, `css/style.css`, `index.html`, `painel.html`, `gestor.html`,
+`carregamento.html`, `service-worker.js`, `README.md`
+
+**Passos de deploy desta versão:**
+1. **Primeiro** o `Ger_Gestao_Coletores`: copiar o `code.gs` novo e publicar **Nova versão na
+   mesma implantação** (a URL `/exec` não muda). Conferir no navegador
+   `<URL>?api=status&coletor=<nome de um coletor>`: deve responder `{"sucesso":true,...}`.
+2. Depois o Tarefas: merge na `main`; conferir `Versão v10` na tela de login dos coletores.
+3. Em cada coletor, ler o QR de configuração `COLETOR:<nome>` uma vez.
+4. A página antiga de coletores pode continuar em paralelo por 1 a 2 semanas (as duas gravam
+   na mesma planilha, com as mesmas regras). Depois, remover o atalho antigo dos coletores.
 
 ### v8 — Índice de tarefas abertas + diagnóstico de deploy
 
