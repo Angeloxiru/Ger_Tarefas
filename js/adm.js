@@ -57,7 +57,7 @@ const Adm = {
           const classe = c.na_base ? '' : (c.minutos_fora >= 360 ? 'badge-danger' : 'badge-warning');
           return `<tr>
             <td><strong>${this._esc(c.coletor)}</strong></td>
-            <td>${c.na_base ? '<span class="badge badge-success">Base</span>' : `<span class="badge ${classe}">${this._esc(c.nome || c.cod_fun)}</span>`}</td>
+            <td>${c.em_conserto ? '<span class="badge">Conserto</span>' : c.na_base ? '<span class="badge badge-success">Base</span>' : `<span class="badge ${classe}">${this._esc(c.nome || c.cod_fun)}</span>`}</td>
             <td>${c.na_base ? '' : this._dataHora(c.desde)}</td>
             <td>${tempo}</td></tr>`;
         }).join('')}</tbody></table></div>`;
@@ -76,7 +76,8 @@ const Adm = {
 
     const rotulos = {
       leitura_errada: ['Leitura errada', 'badge-warning'], limite_tentativas: ['3 erros seguidos', 'badge-danger'],
-      assumido: ['Coletor assumido', 'badge-info'], atraso_6h: ['Mais de 6h', 'badge-danger'], outro: ['Outro', 'badge-info']
+      assumido: ['Coletor assumido', 'badge-info'], atraso_6h: ['Mais de 6h', 'badge-danger'],
+      conserto: ['Conserto', 'badge-warning'], outro: ['Outro', 'badge-info']
     };
     el.innerHTML = `<p class="adm-contagem">${r.dados.length} registro(s). Guardados por 45 dias.</p>` + r.dados.map(o => {
       const [rot, cls] = rotulos[o.tipo] || rotulos.outro;

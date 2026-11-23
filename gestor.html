@@ -287,8 +287,8 @@
     </div>
   </div>
 
-  <script src="js/vendor/html5-qrcode.min.js?v=12"></script>
-  <script src="js/config.js?v=12"></script>
+  <script src="js/vendor/html5-qrcode.min.js?v=1.1.0"></script>
+  <script src="js/config.js?v=1.1.0"></script>
   <script>
     (function() {
       var stored = localStorage.getItem('app_version');
@@ -301,18 +301,18 @@
       }
     })();
   </script>
-  <script src="js/db.js?v=12"></script>
-  <script src="js/backend.js?v=12"></script>
-  <script src="js/api.js?v=12"></script>
-  <script src="js/auth.js?v=12"></script>
-  <script src="js/scanner.js?v=12"></script>
-  <script src="js/tarefas.js?v=12"></script>
-  <script src="js/carregamento.js?v=12"></script>
-  <script src="js/gestor.js?v=12"></script>
-  <script src="js/ui.js?v=12"></script>
-  <script src="js/coletor.js?v=12"></script>
-  <script src="js/adm.js?v=12"></script>
-  <script src="js/desktop.js?v=12"></script>
+  <script src="js/db.js?v=1.1.0"></script>
+  <script src="js/backend.js?v=1.1.0"></script>
+  <script src="js/api.js?v=1.1.0"></script>
+  <script src="js/auth.js?v=1.1.0"></script>
+  <script src="js/scanner.js?v=1.1.0"></script>
+  <script src="js/tarefas.js?v=1.1.0"></script>
+  <script src="js/carregamento.js?v=1.1.0"></script>
+  <script src="js/gestor.js?v=1.1.0"></script>
+  <script src="js/ui.js?v=1.1.0"></script>
+  <script src="js/coletor.js?v=1.1.0"></script>
+  <script src="js/adm.js?v=1.1.0"></script>
+  <script src="js/desktop.js?v=1.1.0"></script>
   <script>
     let funcionario = null;
     let gestorRegistroAtual = null;
@@ -388,7 +388,13 @@
       let mapaColetores = {};
       try { mapaColetores = await Coletor.mapaEmUso(); } catch (e) {}
 
-      Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios, mapaColetores);
+      if (Desktop.ativo) {
+        // Computador: em tarefa primeiro, busca por nome e horario da atualizacao
+        Gestor.renderizarFuncionarios('lista-funcionarios', Desktop.ordenarFuncionarios(dados.funcionarios), mapaColetores);
+        Desktop.aposAtualizarTempoReal();
+      } else {
+        Gestor.renderizarFuncionarios('lista-funcionarios', dados.funcionarios, mapaColetores);
+      }
     }
 
     // === TAREFAS DO GESTOR ===
