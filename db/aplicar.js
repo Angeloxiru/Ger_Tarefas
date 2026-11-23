@@ -14,9 +14,12 @@ const DB = require('../js/db.js');
 // Colunas acrescentadas depois da criacao do banco (ALTER TABLE ... ADD COLUMN).
 // Se a coluna ja existe, o erro "duplicate column" e ignorado.
 const MIGRACOES = [
-  "ALTER TABLE coletores ADD COLUMN em_conserto INTEGER NOT NULL DEFAULT 0 CHECK (em_conserto IN (0, 1))"
+  "ALTER TABLE coletores ADD COLUMN em_conserto INTEGER NOT NULL DEFAULT 0 CHECK (em_conserto IN (0, 1))",
+  "ALTER TABLE funcionarios ADD COLUMN codigo_wms TEXT"
 ];
 
+// Tabelas da importacao das planilhas antigas (apagadas com --substituir).
+// As tabelas do WMS (wms_tarefas, wms_importacoes, lkp_aplicacoes) NAO entram aqui.
 const TABELAS = ['ocorrencias', 'coletores_log', 'coletores', 'alertas', 'cargas', 'registros', 'config', 'docas', 'tarefas', 'funcionarios'];
 
 function comandosDoSchema() {

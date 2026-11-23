@@ -72,7 +72,7 @@ de Brasilia; booleanos como 0/1; codigos sem diferenciar maiusculas.
 ### Cadastros (mantidos pelo console do Turso)
 | Tabela | Colunas | Observacao |
 |---|---|---|
-| `funcionarios` | codigo (PK), nome, nome_completo, cargo, ativo, perfil, senha, criado_em | `perfil`: `funcionario`, `gestor` ou `adm`. Senha vazia = entra sem senha. Cadastro unico (tarefas e coletores) |
+| `funcionarios` | codigo (PK), nome, nome_completo, cargo, ativo, perfil, senha, criado_em, codigo_wms | `perfil`: `funcionario`, `gestor` ou `adm`. Senha vazia = entra sem senha. Cadastro unico (tarefas e coletores). `codigo_wms` = codigo do funcionario no outro app (regra: PL33 -> 33) |
 | `tarefas` | id_tarefa (PK), nome, usa_qrcode_carga, tempo_maximo_min, ativa | Passou de `tempo_maximo_min`: timeout automatico |
 | `docas` | codigo (PK), nome | `codigo` e o conteudo do QR da doca |
 | `coletores` | coletor (PK), ativo, responsavel, desde, alerta_6h_em, em_conserto | `responsavel` vazio = na base; `em_conserto` = 1 nao pode ser retirado. Mantido pelo app |
@@ -87,6 +87,26 @@ de Brasilia; booleanos como 0/1; codigos sem diferenciar maiusculas.
 | `coletores_log` | Retiradas e devolucoes. **Apagado apos 7 dias** |
 | `ocorrencias` | Irregularidades dos coletores (antigo `registro_diario`). **Apagadas apos 45 dias** |
 
+### Tarefas do outro app (WMS), importadas pelo ADM
+| Tabela | Conteudo |
+|---|---|
+| `wms_tarefas` | Uma linha por tarefa do relatorio "Tarefas Realizadas". **Chave = `numero`**: importar de novo a mesma tarefa sobrescreve. Colunas: endereco_inicial (e partes deposito, predio, rua, posicao, andar), dt_aceite, dt_conclusao, execucao_seg, cod_aplicacao, tarefa, cod_func_wms, nome_func_wms, codigo_func (nosso), qtde_itens, qt_enderecos |
+| `lkp_aplicacoes` | Codigos e nomes das aplicacoes do WMS (atualizada a cada importacao) |
+| `wms_importacoes` | Historico de importacoes: quando, arquivo, linhas, novas, atualizadas, sem vinculo, periodo, quem |
+
+Regras da importacao:
+- Endereco `12B00101A` = deposito `1`, predio `2`, rua `B`, posicao `001`, andar `01A`.
+- **Separacao por paletes** (`CSE020WIS`) e gravada como **Separacao Manual** quando e no deposito 1,
+  predio 2, ruas A, B, C, D ou F (rua E nao) e andar 01A; todas as outras viram **Separacao Empilhadeira**.
+  As demais aplicacoes mantem o nome do WMS (Armazenagem, Recebimento, ...).
+- Datas do arquivo (horario de Brasilia) viram UTC; `execucao_seg` vem da coluna Execucao.
+- O funcionario e ligado pelo `funcionarios.codigo_wms`. Codigo sem vinculo: a tarefa entra mesmo
+  assim (com codigo e nome do WMS) e a previa avisa. Para vincular depois, preencha `codigo_wms`
+  e importe o arquivo de novo (as tarefas sao atualizadas).
+- Colunas do relatorio que nao sao gravadas: Empresa, Endereco Final, Dt. Convocacao, Espera,
+  Tarefa Origem, Tarefa Quebrada, Cliente, Pedido Origem, Rota, Classe, Qt Skus.
+- Funcionario novo: ao cadastrar pelo console, preencha tambem o `codigo_wms`.
+
 ### Views
 | View | Uso |
 |---|---|
@@ -95,6 +115,9 @@ de Brasilia; booleanos como 0/1; codigos sem diferenciar maiusculas.
 | `vw_tarefas_abertas` | Tarefas em andamento, minutos decorridos e se ja venceu |
 | `vw_coletores_situacao` | Quem esta com cada coletor e ha quanto tempo |
 | `vw_exportacao` | Base da exportacao do ADM |
+| `vw_wms_tarefas` | Tarefas do WMS com nome do funcionario, aplicacao e dia (Brasilia) |
+| `vw_wms_resumo_dia` | Por dia, funcionario e tarefa: quantidade, itens, enderecos e tempo de execucao |
+| `lkp_tarefas_wms` | Nomes de tarefa do WMS e quantidade (para filtros) |
 
 ### Cadastrar pelo console do Turso (exemplos)
 ```sql
@@ -114,7 +137,7 @@ INSERT INTO tarefas (id_tarefa, nome, usa_qrcode_carga, tempo_maximo_min) VALUES
 |---|---|
 | `funcionario` | Painel de tarefas, carregamento, alertas proprios, retirada/devolucao do coletor |
 | `gestor` | Painel do gestor: Tempo Real, Tarefas, Historico, Alertas, Raio X |
-| `adm` | Tudo do gestor **+** abas **Coletores** (situacao de cada coletor), **Irregularidades** (filtro por data, 45 dias) e **Exportacao** (.xlsx por periodo) |
+| `adm` | Tudo do gestor **+** abas **Coletores** (situacao de cada coletor), **Irregularidades** (filtro por data, 45 dias) e **Exp/Imp** (exporta .xlsx por periodo e importa tarefas do WMS) |
 
 ### Modo computador (desde a 1.1.0)
 O app trata como **computador** o navegador **sem coletor vinculado** (nunca leu um QR
@@ -167,6 +190,7 @@ do antigo Apps Script.
 | `cadastrar_funcionario`, `cadastrar_tarefa` | Cadastros pelo app (opcional; o padrao e o console) |
 | `coletor_status`, `coletor_registrar`, `coletor_assumir`, `coletor_evento`, `coletor_lista` | Controle de coletor |
 | `adm_coletores`, `adm_ocorrencias`, `adm_exportacao`, `adm_coletor_historico`, `adm_coletor_conserto` | Telas do ADM |
+| `adm_wms_importar` (`simular` para a previa), `adm_wms_importacoes` | Importacao das tarefas do WMS |
 | `versao` | Versao do backend (`turso-1`) |
 
 Operacoes que mexem em mais de uma tabela (retirar, devolver, assumir coletor, gravar volumes)
@@ -478,6 +502,21 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 ---
 
 ## Historico de versoes
+
+### 1.2.0 - Importacao das tarefas do WMS
+
+- Aba do ADM **Exportacao** passa a se chamar **Exp/Imp**: mantem a exportacao e ganha a importacao
+  do relatorio "Tarefas Realizadas" (.xlsx) do outro app, com previa (novas, atualizadas, sem
+  vinculo, quantidade por tarefa) antes de confirmar e historico das importacoes.
+- Banco: tabelas `wms_tarefas` (chave = numero, reimportar sobrescreve), `lkp_aplicacoes`,
+  `wms_importacoes`; views `vw_wms_tarefas`, `vw_wms_resumo_dia`, `lkp_tarefas_wms`; coluna
+  `funcionarios.codigo_wms` (preenchida PL<n> = <n>; PL49 sem codigo ate corrigir o cadastro).
+  Ja aplicado no Turso.
+- Separacao por paletes classificada em Separacao Manual / Separacao Empilhadeira pelo endereco.
+- Teste com o relatorio real (3.353 tarefas): importacao em menos de 1 s, reimportacao atualiza sem duplicar.
+
+**Arquivos:** `db/schema.sql`, `db/aplicar.js`, `js/backend.js`, `js/adm.js`, `gestor.html`,
+`css/style.css`, `js/config.js`, `service-worker.js`, 4 HTMLs (`?v=1.2.0`), `README.md`.
 
 ### 1.1.1 - Correcao: CSS desatualizado no navegador
 

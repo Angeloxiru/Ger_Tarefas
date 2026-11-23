@@ -842,6 +842,120 @@
     return { sucesso: true, dados: r };
   }
 
+  // ============================ Importacao WMS (ADM) ============================
+  // Relatorio "Tarefas Realizadas" do outro app. Chave = numero: reimportar sobrescreve.
+
+  // Endereco 12B00101A = deposito 1, predio 2, rua B, posicao 001, andar 01A
+  function partesEndereco(end) {
+    const m = String(end || '').trim().toUpperCase().match(/^(\d)(\d)([A-Z])(\d{3})(\d{2}[A-Z])$/);
+    if (!m) return { deposito: null, predio: null, rua: null, posicao: null, andar: null };
+    return { deposito: m[1], predio: m[2], rua: m[3], posicao: m[4], andar: m[5] };
+  }
+
+  // Separacao por paletes no deposito 1, predio 2, ruas A,B,C,D,F, andar 01A = Separacao Manual;
+  // demais separacoes por paletes = Separacao Empilhadeira; outras aplicacoes mantem o nome.
+  function classificarWms(codAplicacao, nomeAplicacao, endereco) {
+    const nome = String(nomeAplicacao || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (codAplicacao === 'CSE020WIS' || nome === 'separacao por paletes') {
+      const e = partesEndereco(endereco);
+      const manual = e.deposito === '1' && e.predio === '2' && 'ABCDF'.includes(e.rua || '-') && e.andar === '01A';
+      return manual ? 'Separação Manual' : 'Separação Empilhadeira';
+    }
+    return String(nomeAplicacao || codAplicacao || '').trim();
+  }
+
+  const COLS_WMS = ['numero', 'endereco_inicial', 'deposito', 'predio', 'rua', 'posicao', 'andar', 'dt_aceite',
+    'dt_conclusao', 'execucao_seg', 'cod_aplicacao', 'tarefa', 'cod_func_wms', 'nome_func_wms', 'codigo_func',
+    'qtde_itens', 'qt_enderecos', 'id_importacao', 'importado_em'];
+
+  // p.registros: [{ numero, endereco_inicial, dt_aceite, dt_conclusao, execucao_seg, cod_aplicacao,
+  //   aplicacao, cod_func_wms, nome_func_wms, qtde_itens, qt_enderecos }]
+  // p.simular = true: so calcula a previa (novas, atualizadas, sem vinculo), sem gravar.
+  async function admWmsImportar(p) {
+    const regs = Array.isArray(p.registros) ? p.registros : [];
+    if (!regs.length) return erro('Nenhuma linha para importar.');
+
+    // Numero repetido dentro do mesmo arquivo: vale a ultima linha
+    const porNumero = new Map();
+    regs.forEach(r => { if (String(r.numero || '').trim()) porNumero.set(String(r.numero).trim(), r); });
+    const lista = Array.from(porNumero.values());
+
+    const funcs = await DB.query('SELECT codigo, nome, codigo_wms FROM funcionarios WHERE codigo_wms IS NOT NULL');
+    const mapa = {};
+    funcs.forEach(f => { mapa[String(f.codigo_wms).trim()] = f; });
+
+    const existentes = new Set();
+    const numeros = Array.from(porNumero.keys());
+    for (let i = 0; i < numeros.length; i += 500) {
+      const lote = numeros.slice(i, i + 500);
+      const r = await DB.query(`SELECT numero FROM wms_tarefas WHERE numero IN (${lote.map(() => '?').join(',')})`, lote);
+      r.forEach(x => existentes.add(x.numero));
+    }
+
+    const semVinculo = {};
+    const porTarefa = {};
+    let ini = null, fim = null;
+    const linhas = lista.map(r => {
+      const e = partesEndereco(r.endereco_inicial);
+      const tarefa = classificarWms(r.cod_aplicacao, r.aplicacao, r.endereco_inicial);
+      const codWms = String(r.cod_func_wms || '').trim();
+      const f = mapa[codWms];
+      if (!f) semVinculo[codWms] = r.nome_func_wms || '';
+      porTarefa[tarefa] = (porTarefa[tarefa] || 0) + 1;
+      if (!ini || r.dt_aceite < ini) ini = r.dt_aceite;
+      if (!fim || r.dt_aceite > fim) fim = r.dt_aceite;
+      return {
+        numero: String(r.numero).trim(), endereco_inicial: String(r.endereco_inicial || '').trim().toUpperCase(),
+        deposito: e.deposito, predio: e.predio, rua: e.rua, posicao: e.posicao, andar: e.andar,
+        dt_aceite: r.dt_aceite, dt_conclusao: r.dt_conclusao || null,
+        execucao_seg: r.execucao_seg === null || r.execucao_seg === undefined ? null : Math.round(Number(r.execucao_seg)),
+        cod_aplicacao: String(r.cod_aplicacao || '').trim(), tarefa,
+        cod_func_wms: codWms, nome_func_wms: r.nome_func_wms || null, codigo_func: f ? f.codigo : null,
+        qtde_itens: r.qtde_itens === null || r.qtde_itens === undefined || r.qtde_itens === '' ? null : parseInt(r.qtde_itens, 10),
+        qt_enderecos: r.qt_enderecos === null || r.qt_enderecos === undefined || r.qt_enderecos === '' ? null : parseInt(r.qt_enderecos, 10),
+        _aplicacao: r.aplicacao
+      };
+    });
+
+    const resumo = {
+      linhas: linhas.length, novas: linhas.filter(l => !existentes.has(l.numero)).length,
+      atualizadas: linhas.filter(l => existentes.has(l.numero)).length,
+      sem_vinculo: linhas.filter(l => !l.codigo_func).length,
+      funcionarios_sem_vinculo: semVinculo, por_tarefa: porTarefa, periodo_ini: ini, periodo_fim: fim,
+      repetidas_no_arquivo: regs.length - lista.length
+    };
+    if (p.simular) return { sucesso: true, dados: resumo };
+
+    const agora = agoraISO();
+    const imp = await DB.executar(`INSERT INTO wms_importacoes (data_hora, arquivo, linhas, novas, atualizadas, sem_vinculo, periodo_ini, periodo_fim, importado_por)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [agora, p.arquivo || null, resumo.linhas, resumo.novas, resumo.atualizadas,
+      resumo.sem_vinculo, ini, fim, cod(p.codigo_adm) || null]);
+    const idImp = Number(imp.ultimoId);
+
+    // Aplicacoes (lookup)
+    const apls = {};
+    linhas.forEach(l => { if (l.cod_aplicacao) apls[l.cod_aplicacao] = l._aplicacao || l.cod_aplicacao; });
+    await DB.transacao(Object.entries(apls).map(([c, n]) => [
+      `INSERT INTO lkp_aplicacoes (cod_aplicacao, nome, atualizado_em) VALUES (?, ?, ?)
+       ON CONFLICT(cod_aplicacao) DO UPDATE SET nome = excluded.nome, atualizado_em = excluded.atualizado_em`, [c, String(n), agora]]));
+
+    const sqlUpsert = `INSERT INTO wms_tarefas (${COLS_WMS.join(', ')}) VALUES (${COLS_WMS.map(() => '?').join(', ')})
+      ON CONFLICT(numero) DO UPDATE SET ${COLS_WMS.filter(c => c !== 'numero').map(c => `${c} = excluded.${c}`).join(', ')}`;
+    const LOTE = 250;
+    for (let i = 0; i < linhas.length; i += LOTE) {
+      await DB.transacao(linhas.slice(i, i + LOTE).map(l => [sqlUpsert,
+        COLS_WMS.map(c => c === 'id_importacao' ? idImp : c === 'importado_em' ? agora : l[c])]));
+      if (typeof p.aoProgresso === 'function') p.aoProgresso(Math.min(i + LOTE, linhas.length), linhas.length);
+    }
+    return { sucesso: true, dados: Object.assign({ id_importacao: idImp }, resumo), mensagem: `${resumo.linhas} tarefas importadas.` };
+  }
+
+  async function admWmsImportacoes() {
+    const r = await DB.query(`SELECT i.*, f.nome AS nome_adm FROM wms_importacoes i
+      LEFT JOIN funcionarios f ON f.codigo = i.importado_por ORDER BY i.id DESC LIMIT 15`);
+    return { sucesso: true, dados: r };
+  }
+
   // ============================ Rotinas agendadas ============================
 
   async function rotinaColetores6h() {
@@ -903,6 +1017,8 @@
     adm_ocorrencias: admOcorrencias,
     adm_coletor_historico: admColetorHistorico,
     adm_coletor_conserto: admColetorConserto,
+    adm_wms_importar: admWmsImportar,
+    adm_wms_importacoes: admWmsImportacoes,
     adm_exportacao: admExportacao
   };
 
@@ -920,7 +1036,7 @@
       }
     },
     aplicarTimeouts, rotinaColetores6h, rotinaLimpeza, calcularDistribuicao,
-    util: { diaSP, inicioDiaUTC, intervalo, carimboSP, partesSP }
+    util: { diaSP, inicioDiaUTC, intervalo, carimboSP, partesSP, partesEndereco, classificarWms }
   };
 
   raiz.Backend = Backend;

@@ -1288,3 +1288,11 @@ body.modo-computador .desk-resumo.desk-resumo-5 { grid-template-columns: repeat(
 .desk-modal-acoes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .desk-modal-acoes .btn { width: auto; align-self: flex-start; min-height: 0; padding: 10px 20px; }
 .desk-modal-acoes .msg { margin: 0; }
+
+/* Importacao WMS (Exp/Imp do ADM) */
+.adm-imp-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }
+.adm-imp-resumo > div { background: #f5f8fd; border-radius: 8px; padding: 10px; font-size: 0.85rem; text-align: center; }
+.adm-imp-resumo > div b { display: block; font-size: 1.3rem; }
+.adm-imp-resumo > div.adm-imp-alerta { background: #fff7e6; color: #92400e; }
+.adm-imp-tabela { max-width: 420px; }
+body.modo-computador #tab-adm-exportacao .card { max-width: 980px; }

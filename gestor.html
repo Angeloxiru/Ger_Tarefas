@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Tarefas">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="css/style.css?v=1.1.1">
+  <link rel="stylesheet" href="css/style.css?v=1.2.0">
 </head>
 <body>
   <div class="header">
@@ -34,7 +34,7 @@
       <button class="tab" data-tab="raiox" onclick="trocarTab('raiox')">Raio X</button>
       <button class="tab tab-adm hidden" data-tab="adm-coletores" onclick="trocarTab('adm-coletores')">Coletores</button>
       <button class="tab tab-adm hidden" data-tab="adm-irregularidades" onclick="trocarTab('adm-irregularidades')">Irregularidades</button>
-      <button class="tab tab-adm hidden" data-tab="adm-exportacao" onclick="trocarTab('adm-exportacao')">Exportação</button>
+      <button class="tab tab-adm hidden" data-tab="adm-exportacao" onclick="trocarTab('adm-exportacao')">Exp/Imp</button>
     </div>
 
     <!-- Abas exclusivas do perfil ADM (js/adm.js) -->
@@ -64,6 +64,22 @@
         <button class="btn btn-success" onclick="Adm.exportar()">Gerar Excel</button>
         <div id="adm-exp-msg" class="msg hidden" style="margin-top:12px;"></div>
         <p class="adm-nota">Colunas: Tarefas Diárias, Qtd de Tarefas, Qtd Itens (parte de cada pessoa na carga), Soma de Tempo, Volume por hora, Nome do funcionário e Data.</p>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title mb-12">Importar tarefas do WMS (.xlsx)</h3>
+        <p class="adm-nota" style="margin-top:0;">Relatório "Tarefas Realizadas" do outro app. Tarefas que já existem (mesmo Número) são atualizadas, sem duplicar.</p>
+        <div class="form-group">
+          <label for="adm-imp-arquivo">Arquivo</label>
+          <input type="file" id="adm-imp-arquivo" accept=".xlsx,.xls" onchange="Adm.lerImportacao()">
+        </div>
+        <div id="adm-imp-previa"></div>
+        <div id="adm-imp-msg" class="msg hidden" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title mb-12">Últimas importações</h3>
+        <div id="adm-imp-historico"><p class="adm-nota" style="margin-top:0;">Abra esta aba para carregar.</p></div>
       </div>
     </div>
 
@@ -287,8 +303,8 @@
     </div>
   </div>
 
-  <script src="js/vendor/html5-qrcode.min.js?v=1.1.1"></script>
-  <script src="js/config.js?v=1.1.1"></script>
+  <script src="js/vendor/html5-qrcode.min.js?v=1.2.0"></script>
+  <script src="js/config.js?v=1.2.0"></script>
   <script>
     (function() {
       var stored = localStorage.getItem('app_version');
@@ -301,18 +317,18 @@
       }
     })();
   </script>
-  <script src="js/db.js?v=1.1.1"></script>
-  <script src="js/backend.js?v=1.1.1"></script>
-  <script src="js/api.js?v=1.1.1"></script>
-  <script src="js/auth.js?v=1.1.1"></script>
-  <script src="js/scanner.js?v=1.1.1"></script>
-  <script src="js/tarefas.js?v=1.1.1"></script>
-  <script src="js/carregamento.js?v=1.1.1"></script>
-  <script src="js/gestor.js?v=1.1.1"></script>
-  <script src="js/ui.js?v=1.1.1"></script>
-  <script src="js/coletor.js?v=1.1.1"></script>
-  <script src="js/adm.js?v=1.1.1"></script>
-  <script src="js/desktop.js?v=1.1.1"></script>
+  <script src="js/db.js?v=1.2.0"></script>
+  <script src="js/backend.js?v=1.2.0"></script>
+  <script src="js/api.js?v=1.2.0"></script>
+  <script src="js/auth.js?v=1.2.0"></script>
+  <script src="js/scanner.js?v=1.2.0"></script>
+  <script src="js/tarefas.js?v=1.2.0"></script>
+  <script src="js/carregamento.js?v=1.2.0"></script>
+  <script src="js/gestor.js?v=1.2.0"></script>
+  <script src="js/ui.js?v=1.2.0"></script>
+  <script src="js/coletor.js?v=1.2.0"></script>
+  <script src="js/adm.js?v=1.2.0"></script>
+  <script src="js/desktop.js?v=1.2.0"></script>
   <script>
     let funcionario = null;
     let gestorRegistroAtual = null;
@@ -821,6 +837,8 @@
         Adm.carregarColetores();
       } else if (tabId === 'adm-irregularidades') {
         Adm.carregarOcorrencias();
+      } else if (tabId === 'adm-exportacao') {
+        Adm.carregarImportacoes();
       } else if (tabId === 'raiox') {
         raioxPeriodo = null;
         document.querySelectorAll('.btn-periodo').forEach(b => b.classList.remove('ativo'));
