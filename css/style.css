@@ -1186,3 +1186,105 @@ body.coletor-bloqueado .coletor-protegido {
 .adm-oc-quem { font-size: 0.9rem; margin-bottom: 4px; }
 .adm-oc-desc { font-size: 0.85rem; color: #444; }
 .adm-nota { font-size: 0.8rem; color: #666; margin-top: 12px; }
+
+/* ===========================================
+   Modo computador (js/desktop.js)
+   Tudo abaixo vale SO com body.modo-computador (navegador sem coletor
+   vinculado). No coletor Zebra nenhuma destas regras se aplica.
+   =========================================== */
+body.modo-computador { background: #eef2f7; }
+body.modo-computador .header { padding: 14px 32px; }
+body.modo-computador .header h1 { font-size: 1.35rem; }
+body.modo-computador .header .user-info { font-size: 0.95rem; margin-right: 8px; }
+body.modo-computador .container { max-width: none; padding: 20px 32px 40px; }
+
+/* Abas numa linha so, maiores */
+body.modo-computador .tabs { flex-wrap: nowrap; margin-bottom: 20px; }
+body.modo-computador .tabs .tab,
+body.modo-computador .tabs.tabs-adm .tab { flex: 1 1 auto; font-size: 0.98rem; padding: 14px 12px; }
+body.modo-computador .tab:hover { background: #f3f6fb; color: #1a73e8; }
+
+/* Tempo Real: cartoes em colunas */
+body.modo-computador .gestor-filters { max-width: 720px; }
+body.modo-computador #lista-funcionarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+body.modo-computador #lista-funcionarios .card { margin-bottom: 0; }
+
+/* Formularios em grade */
+body.modo-computador .desk-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; align-items: end; }
+body.modo-computador .desk-filtros .form-group { margin-bottom: 0; }
+body.modo-computador .desk-botao-buscar { height: 46px; min-height: 0; }
+body.modo-computador .adm-datas { grid-template-columns: repeat(2, minmax(160px, 260px)); }
+body.modo-computador #tab-adm-exportacao .card,
+body.modo-computador #tab-alertas > .card:first-child { max-width: 760px; }
+body.modo-computador #tab-tarefas { max-width: 640px; }
+
+/* Resumos */
+body.modo-computador .desk-resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+body.modo-computador .desk-resumo .card { margin: 0; text-align: center; padding: 16px; }
+.desk-num { font-size: 1.8rem; font-weight: 700; color: #1f2733; font-variant-numeric: tabular-nums; }
+.desk-num.base { color: #0d9f6e; } .desk-num.uso { color: #1a73e8; } .desk-num.alerta { color: #dc3545; }
+.desk-rot { font-size: 0.8rem; color: #667085; }
+
+/* Tabelas largas */
+body.modo-computador .data-table { font-size: 0.9rem; }
+body.modo-computador .data-table th, body.modo-computador .data-table td { padding: 10px 12px; white-space: nowrap; }
+body.modo-computador .data-table tbody tr:hover { background: #f5f8fd; }
+body.modo-computador .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+body.modo-computador .table-wrapper { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+/* Painel de coletores (estilo do antigo Ger_Gestao_Coletores) */
+.desk-aviso { margin-bottom: 12px; }
+.desk-col-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 14px; }
+.desk-col { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 10px; border-radius: 12px;
+  border: 2px solid transparent; background: #fff; cursor: pointer; font: inherit; text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.15s, box-shadow 0.15s; }
+.desk-col:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.12); }
+.desk-col:focus-visible { outline: 3px solid #1a73e8; outline-offset: 2px; }
+.desk-col-nome { font-size: 1.3rem; font-weight: 700; }
+.desk-col-status { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+.desk-col-status i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.desk-col-tempo { font-size: 0.78rem; color: #555; }
+.desk-col-alerta { font-size: 0.72rem; font-weight: 600; color: #b42318; background: #fee4e2; border-radius: 6px; padding: 2px 6px; }
+.desk-col.base { background: #ecfdf3; border-color: #abefc6; color: #05603a; }
+.desk-col.base i { background: #12b76a; }
+.desk-col.uso { background: #eff4ff; border-color: #b2ccff; color: #1d3f8f; }
+.desk-col.uso i { background: #1a73e8; }
+.desk-col.atrasado { background: #fff4ed; border-color: #f7b27a; color: #93370d; }
+.desk-col.atrasado i { background: #ef6820; }
+.desk-col.duplicado { border-color: #dc3545; animation: desk-piscar 1.5s infinite; }
+@keyframes desk-piscar { 0%, 100% { box-shadow: 0 0 0 0 rgba(220,53,69,0.6); } 50% { box-shadow: 0 0 0 8px rgba(220,53,69,0); } }
+@media (prefers-reduced-motion: reduce) { .desk-col.duplicado { animation: none; } }
+.desk-legenda { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-top: 18px; font-size: 0.85rem; color: #444; }
+.desk-legenda span { display: flex; align-items: center; gap: 6px; }
+.desk-legenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.desk-legenda i.base { background: #12b76a; } .desk-legenda i.uso { background: #1a73e8; }
+.desk-legenda i.atrasado { background: #ef6820; } .desk-legenda i.duplicado { background: #dc3545; }
+.desk-legenda .desk-atualizado { margin-left: auto; color: #667085; }
+
+/* Modal de historico do coletor */
+.desk-modal .modal { max-width: 640px; }
+.desk-modal-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.desk-modal-topo .modal-title { text-align: left; margin-bottom: 2px; }
+.desk-modal-topo .btn { width: auto; min-height: 0; padding: 8px 16px; }
+
+/* Botoes de formulario com tamanho normal no computador */
+body.modo-computador .tab-content > .card > .btn,
+body.modo-computador .tab-content > .card .btn-primary:not(.desk-botao-buscar) { width: auto; min-width: 200px; padding-left: 32px; padding-right: 32px; }
+body.modo-computador #lista-funcionarios { align-items: start; }
+
+/* Modo computador 1.1.0: Tempo Real, exportacao do historico, conserto */
+.desk-busca { flex: 1; min-width: 220px; padding: 10px 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; background: #fff; }
+.desk-busca:focus { border-color: #1a73e8; outline: none; }
+.desk-atualizado-tr { align-self: center; font-size: 0.8rem; color: #667085; margin-left: auto; }
+body.modo-computador .gestor-filters { max-width: none; align-items: center; }
+body.modo-computador .gestor-filters select { flex: 0 1 240px; }
+.desk-barra { display: flex; justify-content: space-between; align-items: center; margin: 0 0 10px; }
+.desk-barra .btn { width: auto; min-height: 0; padding: 10px 22px; }
+body.modo-computador .desk-resumo.desk-resumo-5 { grid-template-columns: repeat(5, 1fr); }
+.desk-num.conserto { color: #667085; }
+.desk-col.conserto { background: #f2f4f7; border-color: #d0d5dd; color: #475467; border-style: dashed; }
+.desk-col.conserto i { background: #98a2b3; }
+.desk-legenda i.conserto { background: #98a2b3; }
+.desk-modal-acoes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.desk-modal-acoes .btn { width: auto; align-self: flex-start; min-height: 0; padding: 10px 20px; }
+.desk-modal-acoes .msg { margin: 0; }

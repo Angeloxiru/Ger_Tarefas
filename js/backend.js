@@ -500,15 +500,18 @@
   async function historico(p) {
     const { ini, fim } = intervalo(p.data_inicio, p.data_fim);
     const filtro = String(p.funcionarios || '').split(',').map(cod).filter(Boolean);
-    const condFunc = filtro.length ? ` AND codigo_func IN (${filtro.map(() => '?').join(',')})` : '';
-    const campos = `id_registro, codigo_func, nome_func, nome_tarefa, data_inicio, data_fim, status, finalizado_por,
+    const tarefasF = String(p.tarefas || '').split(',').map(t => t.trim()).filter(Boolean);
+    const condFunc = (filtro.length ? ` AND codigo_func IN (${filtro.map(() => '?').join(',')})` : '') +
+                     (tarefasF.length ? ` AND id_tarefa IN (${tarefasF.map(() => '?').join(',')})` : '');
+    const argsF = filtro.concat(tarefasF);
+    const campos = `id_registro, codigo_func, nome_func, id_tarefa, nome_tarefa, data_inicio, data_fim, status, finalizado_por,
                     numero_carga, qtd_volumes, volumes_proporcionais, nome_doca, ajudante`;
 
     const [abertos, encerrados] = await DB.varias([
       [`SELECT ${campos} FROM vw_registros WHERE status = 'em_andamento' AND data_inicio >= ? AND data_inicio < ?${condFunc}
-        ORDER BY data_inicio DESC`, [ini, fim, ...filtro]],
+        ORDER BY data_inicio DESC`, [ini, fim, ...argsF]],
       [`SELECT ${campos} FROM vw_registros WHERE status <> 'em_andamento' AND data_inicio >= ? AND data_inicio < ?${condFunc}
-        ORDER BY data_inicio DESC LIMIT 200`, [ini, fim, ...filtro]]
+        ORDER BY data_inicio DESC LIMIT ${Math.min(parseInt(p.limite, 10) || 200, 2000)}`, [ini, fim, ...argsF]]
     ]);
 
     // Registros antigos sem volume gravado: calcula a distribuicao (uma vez por carga)
@@ -524,7 +527,7 @@
 
     const saida = abertos.concat(encerrados).map(r => ({
       id_registro: r.id_registro, codigo_func: r.codigo_func, nome_func: r.nome_func || r.codigo_func,
-      nome_tarefa: r.nome_tarefa, data_inicio: r.data_inicio, data_fim: r.data_fim, status: r.status,
+      id_tarefa: r.id_tarefa, nome_tarefa: r.nome_tarefa, data_inicio: r.data_inicio, data_fim: r.data_fim, status: r.status,
       finalizado_por: r.finalizado_por || '', numero_carga: r.numero_carga, qtd_volumes: r.qtd_volumes,
       volumes_proporcionais: r.volumes_proporcionais, nome_doca: r.nome_doca || null
     }));
@@ -670,13 +673,14 @@
 
   async function situacaoColetor(coletor) {
     const r = await DB.query(`
-      SELECT c.coletor, c.responsavel, c.desde, f.nome
+      SELECT c.coletor, c.responsavel, c.desde, c.em_conserto, f.nome
       FROM coletores c LEFT JOIN funcionarios f ON f.codigo = c.responsavel
       WHERE c.coletor = ? AND c.ativo = 1`, [String(coletor || '').trim()]);
     if (!r.length) return { existe: false, coletor: String(coletor || '').trim() };
     const c = r[0];
-    if (!c.responsavel) return { existe: true, coletor: c.coletor, na_base: true, cod_fun: '', nome: '', desde: '' };
-    return { existe: true, coletor: c.coletor, na_base: false, cod_fun: c.responsavel, nome: c.nome || c.responsavel, desde: c.desde || '' };
+    const conserto = bool(c.em_conserto);
+    if (!c.responsavel) return { existe: true, coletor: c.coletor, na_base: true, em_conserto: conserto, cod_fun: '', nome: '', desde: '' };
+    return { existe: true, coletor: c.coletor, na_base: false, em_conserto: conserto, cod_fun: c.responsavel, nome: c.nome || c.responsavel, desde: c.desde || '' };
   }
 
   async function buscarFuncionario(codigo) {
@@ -685,6 +689,7 @@
   }
 
   const ERRO_FUNC = { motivo: 'funcionario_nao_encontrado' };
+  const MSG_CONSERTO = 'Este coletor está em conserto. Use outro coletor e avise o responsável.';
   const MSG_FUNC = 'Seu crachá não está cadastrado ou está inativo. Peça ajuda ao responsável.';
 
   async function coletorStatus(p) {
@@ -704,6 +709,7 @@
 
     const agora = agoraISO();
     if (acao === 'retirada') {
+      if (sit.em_conserto) return erro(MSG_CONSERTO, { motivo: 'em_conserto' });
       if (!sit.na_base) {
         if (cod(sit.cod_fun) === cod(func.codFun)) {
           return { sucesso: true, dados: { tipo: 'Retirada', coletor: sit.coletor, nome: func.nome, desde: sit.desde, ja_era_seu: true } };
@@ -711,7 +717,7 @@
         return erro(`Este coletor está com ${sit.nome}.`, { motivo: 'outro_responsavel', dados: sit });
       }
       const r = await DB.transacao([
-        ['UPDATE coletores SET responsavel = ?, desde = ?, alerta_6h_em = NULL WHERE coletor = ? AND responsavel IS NULL',
+        ['UPDATE coletores SET responsavel = ?, desde = ?, alerta_6h_em = NULL WHERE coletor = ? AND responsavel IS NULL AND em_conserto = 0',
           [func.codFun, agora, sit.coletor]],
         [`INSERT INTO coletores_log (data_hora, coletor, codigo_func, nome, acao, origem)
           SELECT ?, ?, ?, ?, 'Retirada', 'app' WHERE changes() > 0`, [agora, sit.coletor, func.codFun, func.nome]]
@@ -737,6 +743,7 @@
     if (!func) return erro(MSG_FUNC, ERRO_FUNC);
     const sit = await situacaoColetor(p.coletor);
     if (!sit.existe) return erro('Coletor não cadastrado. Peça ajuda ao responsável.', { motivo: 'coletor_nao_encontrado' });
+    if (sit.em_conserto) return erro(MSG_CONSERTO, { motivo: 'em_conserto' });
     if (sit.na_base) return coletorRegistrar({ coletor: p.coletor, codfun: p.codfun, movimento: 'retirada' });
     if (cod(sit.cod_fun) === cod(func.codFun)) {
       return { sucesso: true, dados: { coletor: sit.coletor, nome: func.nome, desde: sit.desde, ja_era_seu: true } };
@@ -764,6 +771,7 @@
   function tipoOcorrencia(descricao) {
     if (/leituras erradas seguidas/i.test(descricao)) return 'limite_tentativas';
     if (/^Leitura errada/i.test(descricao)) return 'leitura_errada';
+    if (/conserto/i.test(descricao)) return 'conserto';
     return 'outro';
   }
 
@@ -785,7 +793,36 @@
   // ============================ ADM ============================
 
   async function admColetores() {
-    const r = await DB.query('SELECT coletor, cod_fun, nome, desde, na_base, minutos_fora FROM vw_coletores_situacao WHERE ativo = 1 ORDER BY coletor');
+    const r = await DB.query('SELECT coletor, cod_fun, nome, desde, na_base, em_conserto, minutos_fora FROM vw_coletores_situacao WHERE ativo = 1 ORDER BY coletor');
+    return { sucesso: true, dados: r };
+  }
+
+  // Envia para conserto (so coletor na base) ou libera do conserto
+  async function admColetorConserto(p) {
+    const coletor = String(p.coletor || '').trim();
+    const conserto = bool(p.em_conserto) ? 1 : 0;
+    const quem = cod(p.codigo_adm);
+    if (!coletor) return erro('Coletor não informado.');
+    const nome = (await DB.query('SELECT nome FROM funcionarios WHERE codigo = ?', [quem]))[0];
+    const desc = conserto ? `Enviado para conserto por ${nome ? nome.nome : quem}` : `Liberado do conserto por ${nome ? nome.nome : quem}`;
+    const r = await DB.transacao([
+      [`UPDATE coletores SET em_conserto = ? WHERE coletor = ? AND em_conserto <> ? AND (? = 0 OR responsavel IS NULL)`,
+        [conserto, coletor, conserto, conserto]],
+      [`INSERT INTO ocorrencias (data_hora, coletor, codigo_func, nome, tipo, descricao)
+        SELECT ?, ?, ?, ?, 'conserto', ? WHERE changes() > 0`, [agoraISO(), coletor, quem, nome ? nome.nome : null, desc]]
+    ]);
+    if (!r[0].alteradas) {
+      return erro(conserto ? 'Só é possível enviar para conserto um coletor que está na base.' : 'Este coletor não está em conserto.');
+    }
+    return { sucesso: true, mensagem: desc };
+  }
+
+  // Ultimas movimentacoes de um coletor (painel de coletores no computador)
+  async function admColetorHistorico(p) {
+    const coletor = String(p.coletor || '').trim();
+    if (!coletor) return erro('Coletor não informado.');
+    const r = await DB.query(`SELECT data_hora, codigo_func, nome, acao, origem FROM coletores_log
+      WHERE coletor = ? ORDER BY data_hora DESC LIMIT 15`, [coletor]);
     return { sucesso: true, dados: r };
   }
 
@@ -864,6 +901,8 @@
     coletor_lista: coletorLista,
     adm_coletores: admColetores,
     adm_ocorrencias: admOcorrencias,
+    adm_coletor_historico: admColetorHistorico,
+    adm_coletor_conserto: admColetorConserto,
     adm_exportacao: admExportacao
   };
 

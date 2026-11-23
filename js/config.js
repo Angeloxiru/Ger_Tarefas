@@ -2,8 +2,9 @@
 // Altere a URL abaixo apos publicar o Google Apps Script como Web App
 
 const CONFIG = {
-  // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v11',
+  // Versao do app no formato MAIOR.MENOR.CORRECAO (ver "Versionamento" no README).
+  // Bumpar aqui, em CACHE_NAME do service-worker.js e no ?v= dos 4 HTMLs a cada deploy.
+  APP_VERSION: '1.1.0',
 
   // Banco de dados Turso (desde a v11 o app fala direto com o banco).
   // ATENCAO: este token da leitura e escrita no banco e fica visivel no repositorio

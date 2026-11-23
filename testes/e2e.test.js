@@ -82,6 +82,8 @@ const srv = http.createServer((req, res) => {
 
   // João inicia Conferência
   await page.waitForSelector('#btn-outras');
+  // painel no coletor (com vinculo): sem modo computador
+  assert.ok(!(await page.evaluate(() => document.body.classList.contains('modo-computador'))));
   await page.click('#btn-outras');
   await page.click('.task-item:has-text("Conferência")');
   await page.waitForSelector('#secao-ativa:not(.hidden)');
@@ -177,7 +179,8 @@ const srv = http.createServer((req, res) => {
   assert.strictEqual(q("SELECT status FROM registros WHERE id_registro='RVELHA'")[0].status, 'timeout');
   ok('ADM entra no gestor; painel aplicou timeout da tarefa vencida');
   await p2.click('.tab[data-tab="adm-coletores"]');
-  await p2.waitForSelector('#adm-coletores-lista table');
+  await p2.waitForSelector('#adm-coletores-lista .desk-col');   // computador: painel em cartoes
+  assert.ok(await p2.evaluate(() => document.body.classList.contains('modo-computador')));
   await shot(p2, 'adm-coletores');
   await p2.click('.tab[data-tab="adm-irregularidades"]');
   await p2.waitForSelector('.adm-oc');
@@ -195,6 +198,55 @@ const srv = http.createServer((req, res) => {
   assert.strictEqual(carreg[2], 410); assert.ok(carreg[4] > 0); assert.strictEqual(carreg[5], 'João da Silva');
   await shot(p2, 'adm-exportacao');
   ok('exportação xlsx com itens e volume por hora');
+
+  // Tempo Real no computador: ordenação (em tarefa primeiro), busca e horário da atualização
+  await p2.click('.tab[data-tab="tempo-real"]');
+  await p2.waitForSelector('#desk-busca-func');
+  await p2.waitForFunction(() => document.getElementById('desk-atualizado').textContent.includes('1 min'));
+  await p2.fill('#desk-busca-func', 'mar');
+  const visiveis = await p2.$$eval('#lista-funcionarios .func-card', cs => cs.filter(c => c.style.display !== 'none').map(c => c.querySelector('.func-name').textContent));
+  assert.deepStrictEqual(visiveis, ['Maria']);
+  ok('Tempo Real: busca por nome e atualização a cada 1 min');
+
+  // Conserto: ADM envia GC08 para conserto pelo painel
+  await p2.click('.tab[data-tab="adm-coletores"]');
+  await p2.click('.desk-col[data-coletor="GC08"]');
+  await p2.click('.desk-conserto[data-v="1"]');
+  await p2.waitForSelector('.desk-col.conserto[data-coletor="GC08"]');
+  assert.strictEqual(q("SELECT em_conserto FROM coletores WHERE coletor='GC08'")[0].em_conserto, 1);
+  assert.strictEqual(q("SELECT COUNT(*) n FROM ocorrencias WHERE tipo='conserto'")[0].n, 1);
+  const ret = await p2.evaluate(() => API.get({ acao: 'coletor_registrar', coletor: 'GC08', codfun: 'PL4', movimento: 'retirada' }));
+  assert.strictEqual(ret.motivo, 'em_conserto');
+  ok('conserto: marcado pelo ADM e retirada recusada');
+
+  // Coletor vinculado ao GC08 (em conserto): login recusado
+  const c3 = await browser.newContext({ viewport: { width: 360, height: 640 }, serviceWorkers: 'block' });
+  const p4 = await pagina(c3);
+  await p4.goto(BASE + 'index.html');
+  await p4.evaluate(() => localStorage.setItem('coletor_vinculado', 'GC08'));
+  await p4.goto(BASE + 'index.html');
+  await logar(p4, 'PL4');
+  await p4.waitForFunction(() => document.getElementById('login-msg').textContent.includes('em conserto'));
+  ok('login no coletor em conserto avisa para usar outro');
+
+  // Liberar do conserto
+  await p2.click('.desk-col[data-coletor="GC08"]');
+  await p2.click('.desk-conserto[data-v="0"]');
+  await p2.waitForSelector('.desk-col.base[data-coletor="GC08"]');
+  ok('conserto liberado');
+
+  // Histórico no computador: filtro por tarefa e Excel do que está na tela
+  await p2.click('.tab[data-tab="historico"]');
+  await p2.waitForFunction(() => document.querySelectorAll('#desk-hist-tarefa option').length > 1);
+  await p2.selectOption('#desk-hist-tarefa', 'T001');
+  await p2.click('.desk-botao-buscar');
+  await p2.waitForSelector('#desk-hist-excel');
+  const [dl2] = await Promise.all([p2.waitForEvent('download'), p2.click('#desk-hist-excel')]);
+  const arq2 = path.join(require('os').tmpdir(), 'hist-teste.xlsx'); await dl2.saveAs(arq2);
+  const h = XLSX.utils.sheet_to_json(XLSX.read(fs.readFileSync(arq2)).Sheets['Histórico'], { header: 1 });
+  assert.deepStrictEqual(h[0], ['Funcionário', 'Código', 'Tarefa', 'Início', 'Fim', 'Duração', 'Situação', 'Doca', 'Carga', 'Volumes']);
+  assert.ok(h.length === 2 && h[1][2] === 'Carregamento' && h[1][9] === 410, JSON.stringify(h));
+  ok('histórico filtrado por tarefa e baixado em Excel');
 
   // Gestor comum não vê abas ADM
   const p3 = await pagina(pc);

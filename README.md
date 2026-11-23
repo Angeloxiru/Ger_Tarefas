@@ -2,7 +2,7 @@
 
 Sistema web para registro de atividades operacionais em tempo real, utilizado por 31 a 50 funcionarios atraves de coletores Zebra MC22. Inclui o controle de retirada e devolucao dos coletores.
 
-**Stack (desde a v11):** Frontend (GitHub Pages) + Banco de dados **Turso** (libSQL/SQLite) + rotinas no **GitHub Actions**.
+**Stack (desde a 1.0.0):** Frontend (GitHub Pages) + Banco de dados **Turso** (libSQL/SQLite) + rotinas no **GitHub Actions**.
 O Google Apps Script e as planilhas Google nao sao mais usados (a pasta `apps-script/` fica so como historico).
 
 ---
@@ -44,6 +44,7 @@ Ger_Tarefas/
 │   ├── auth.js             # Login/logout, sessao e perfis (funcionario, gestor, adm)
 │   ├── coletor.js          # Vinculo do aparelho, retirada/devolucao do coletor
 │   ├── adm.js              # Telas do ADM: coletores, irregularidades, exportacao
+│   ├── desktop.js          # Modo computador: layout largo, painel de coletores, filtros do historico
 │   ├── tarefas.js, carregamento.js, gestor.js, scanner.js, ui.js
 │   └── vendor/             # html5-qrcode (leitor de QR) e SheetJS (gera .xlsx)
 │
@@ -74,7 +75,7 @@ de Brasilia; booleanos como 0/1; codigos sem diferenciar maiusculas.
 | `funcionarios` | codigo (PK), nome, nome_completo, cargo, ativo, perfil, senha, criado_em | `perfil`: `funcionario`, `gestor` ou `adm`. Senha vazia = entra sem senha. Cadastro unico (tarefas e coletores) |
 | `tarefas` | id_tarefa (PK), nome, usa_qrcode_carga, tempo_maximo_min, ativa | Passou de `tempo_maximo_min`: timeout automatico |
 | `docas` | codigo (PK), nome | `codigo` e o conteudo do QR da doca |
-| `coletores` | coletor (PK), ativo, responsavel, desde, alerta_6h_em | `responsavel` vazio = na base. Mantido pelo app |
+| `coletores` | coletor (PK), ativo, responsavel, desde, alerta_6h_em, em_conserto | `responsavel` vazio = na base; `em_conserto` = 1 nao pode ser retirado. Mantido pelo app |
 | `config` | chave (PK), valor | |
 
 ### Movimento (gravado pelo app)
@@ -115,6 +116,32 @@ INSERT INTO tarefas (id_tarefa, nome, usa_qrcode_carga, tempo_maximo_min) VALUES
 | `gestor` | Painel do gestor: Tempo Real, Tarefas, Historico, Alertas, Raio X |
 | `adm` | Tudo do gestor **+** abas **Coletores** (situacao de cada coletor), **Irregularidades** (filtro por data, 45 dias) e **Exportacao** (.xlsx por periodo) |
 
+### Modo computador (desde a 1.1.0)
+O app trata como **computador** o navegador **sem coletor vinculado** (nunca leu um QR
+`COLETOR:xx`). Nesse caso (so gestor e ADM conseguem entrar) o painel do gestor ganha:
+- **Largura total da tela**, abas numa linha so, Tempo Real em colunas e tabelas largas.
+- **Historico:** filtros por **tipo de tarefa**, **funcionario** (lista, sem escanear cracha),
+  **situacao** e **maximo de linhas** (200 a 2000); resumo com registros, funcionarios, tempo das
+  finalizadas e volumes; coluna de duracao.
+- **Historico em Excel:** botao "Baixar Excel" gera um `.xlsx` exatamente com o que esta na tela.
+- **Tempo Real:** quem esta em tarefa aparece primeiro (timeout e alerta no topo, depois as mais
+  antigas), ociosos em ordem alfabetica; busca por nome; atualiza a cada **1 minuto** e mostra o
+  horario da ultima atualizacao (no coletor continua a cada 30 s, sem mudanca).
+- **Coletores (ADM):** painel em cartoes no estilo do antigo Ger_Gestao_Coletores: verde = base,
+  azul = em uso, laranja = mais de 6h fora, cinza tracejado = conserto, borda vermelha piscando =
+  mesma pessoa com 2 coletores. Clique no cartao mostra as ultimas movimentacoes (log de 7 dias) e
+  os botoes **Enviar para conserto** / **Liberar do conserto**. Atualiza sozinho a cada 30 s.
+
+### Conserto de coletor
+- So o ADM, pelo painel de coletores no computador, envia um coletor para conserto, e so se ele
+  estiver **na base**. Fica registrado em Irregularidades (tipo "Conserto") quem enviou e quem liberou.
+- Coletor em conserto **nao pode ser retirado nem assumido**. Quem tentar entrar num aparelho
+  vinculado a ele ve "O GCxx esta em conserto. Use outro coletor e avise o responsavel."
+- Tambem da para marcar pelo console: `UPDATE coletores SET em_conserto = 1 WHERE coletor = 'GC10';`
+
+**No coletor Zebra (com vinculo) nada disso e ativado:** todas as regras de estilo ficam sob
+`body.modo-computador` e o `js/desktop.js` nao faz nada quando ha vinculo.
+
 ### Exportacao (ADM)
 Planilha `.xlsx` de tarefas finalizadas no periodo escolhido, com as mesmas colunas da antiga
 exportacao do Apps Script: Tarefas Diarias, Qtd de Tarefas, Qtd Itens, Soma de Tempo, Volume por
@@ -135,11 +162,11 @@ do antigo Apps Script.
 | `listar_tarefas`, `status_funcionario` | Tarefas ativas; tarefa aberta (ja encerra por timeout se venceu) |
 | `iniciar_tarefa`, `finalizar_tarefa` | Inicia/finaliza; no carregamento calcula e grava a distribuicao de volumes |
 | `verificar_doca`, `registrar_carga`, `workers_carga`, `distribuicao_carga` | Fluxo de carregamento |
-| `painel_gestor`, `historico`, `raiox` | Painel do gestor |
+| `painel_gestor`, `historico`, `raiox` | Painel do gestor (`historico` aceita `tarefas` e `limite`) |
 | `registrar_alerta`, `listar_alertas` | Alertas |
 | `cadastrar_funcionario`, `cadastrar_tarefa` | Cadastros pelo app (opcional; o padrao e o console) |
 | `coletor_status`, `coletor_registrar`, `coletor_assumir`, `coletor_evento`, `coletor_lista` | Controle de coletor |
-| `adm_coletores`, `adm_ocorrencias`, `adm_exportacao` | Telas do ADM |
+| `adm_coletores`, `adm_ocorrencias`, `adm_exportacao`, `adm_coletor_historico`, `adm_coletor_conserto` | Telas do ADM |
 | `versao` | Versao do backend (`turso-1`) |
 
 Operacoes que mexem em mais de uma tabela (retirar, devolver, assumir coletor, gravar volumes)
@@ -348,26 +375,40 @@ O sistema armazena codigos internamente mas exibe **nomes** no frontend:
 
 ## Configuracao e deploy
 
+### Versionamento (MAIOR.MENOR.CORRECAO)
+Desde a 1.0.0 a versao tem tres numeros. A tela de login mostra a versao (`Versao 1.1.0`).
+
+| Tipo de mudanca | O que sobe | Exemplo | Quando usar |
+|---|---|---|---|
+| **Geral** | MAIOR, zera os outros | `1.4.2` -> `2.0.0` | Muda a arquitetura ou o jeito de trabalhar (ex.: troca de banco, mudanca no fluxo do coletor que exige treinar a equipe) |
+| **Funcionalidade nova** | MENOR, zera a correcao | `1.4.2` -> `1.5.0` | Tela, filtro, relatorio ou regra nova, sem mudar o que ja existe |
+| **Pequena** | CORRECAO | `1.4.2` -> `1.4.3` | Correcao de erro, texto, ajuste visual, desempenho |
+
+Equivalencia com as versoes antigas: `v11` (banco Turso) = **1.0.0**; modo computador + melhorias = **1.1.0**.
+O historico abaixo da 1.0.0 mantem os nomes antigos (v4 a v10).
+
 ### Publicar uma versao nova (frontend)
-A cada mudanca em HTML/CSS/JS, bumpe **3 numeros**:
+A cada mudanca em HTML/CSS/JS, troque a versao em **3 lugares** (mesmo numero nos tres):
 
 | Arquivo | Campo | Exemplo |
 |---------|-------|---------|
-| `js/config.js` | `APP_VERSION` | `'v11'` -> `'v12'` |
-| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v11'` -> `'ger-tarefas-v12'` |
-| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=11` -> `?v=12` |
+| `js/config.js` | `APP_VERSION` | `'1.1.0'` -> `'1.1.1'` |
+| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-1.1.0'` -> `'ger-tarefas-1.1.1'` |
+| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=1.1.0` -> `?v=1.1.1` |
 
 Depois: merge na `main` e aguarde 1-2 min para o GitHub Pages processar. O service worker detecta a
 versao nova, apaga o cache antigo e recarrega. **Como conferir num coletor:** a tela de login mostra
 `Versao vX`.
 
 ### Mudar o banco (esquema)
-Edite `db/schema.sql` e aplique (os comandos sao `CREATE ... IF NOT EXISTS`, nada e apagado):
+Edite `db/schema.sql` e aplique. Tabelas e indices usam `IF NOT EXISTS` (nada e apagado), as
+views sao recriadas, e colunas novas em tabelas que ja existem entram na lista `MIGRACOES` do
+`db/aplicar.js` (`ALTER TABLE ... ADD COLUMN`, ignorado se a coluna ja existir):
 ```bash
 NODE_USE_ENV_PROXY=1 node db/aplicar.js libsql://tarefas-angeloxiru.aws-us-east-1.turso.io <token>
 ```
-Para alterar uma tabela que ja existe, rode o `ALTER TABLE` pelo console do Turso e atualize o
-`schema.sql` para ficar igual.
+Outras alteracoes (renomear/remover coluna) devem ser feitas com cuidado pelo console do Turso,
+deixando o `schema.sql` igual ao banco.
 
 ### Reimportar as planilhas (virada)
 Baixe cada planilha em **Arquivo > Fazer download > Microsoft Excel (.xlsx)** e rode:
@@ -435,7 +476,30 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 
 ## Historico de versoes
 
-### v11 - Banco de dados Turso (sai o Google)
+### 1.1.0 - Modo computador e melhorias do gestor/ADM
+
+**Modo computador** (navegador sem coletor vinculado; no coletor nada muda):
+- `js/desktop.js`: largura total da tela, abas numa linha, Tempo Real em colunas.
+- Historico: filtros por tipo de tarefa, funcionario (lista), situacao e limite de linhas; resumo;
+  coluna de duracao; **Baixar Excel** do que esta na tela.
+- Tempo Real: em tarefa primeiro (alertas no topo), busca por nome, atualizacao a cada 1 minuto
+  com horario da ultima atualizacao.
+- Coletores (ADM): painel em cartoes no estilo do antigo Ger_Gestao_Coletores, historico por
+  coletor e atualizacao a cada 30 s.
+
+**Conserto de coletor:** coluna `coletores.em_conserto`; ADM envia/libera pelo painel; coletor em
+conserto nao pode ser retirado nem assumido; login no aparelho dele avisa para usar outro.
+
+**Versionamento** passa a ser MAIOR.MENOR.CORRECAO (ver "Versionamento"). `v11` = 1.0.0.
+
+**Banco:** coluna `em_conserto` (migracao no `db/aplicar.js`), views recriadas a cada aplicacao,
+`vw_coletores_situacao` com `em_conserto`. Ja aplicado no Turso.
+
+**Arquivos:** `js/desktop.js` (novo), `js/backend.js`, `js/coletor.js`, `js/gestor.js`, `js/adm.js`,
+`gestor.html`, `css/style.css`, `js/config.js`, `service-worker.js`, 4 HTMLs (`?v=1.1.0`),
+`db/schema.sql`, `db/aplicar.js`, `testes/e2e.test.js`, `README.md`.
+
+### 1.0.0 (antiga v11) - Banco de dados Turso (sai o Google)
 
 **Motivo:** o app ficava lento e dava "sem resposta" com o Google Apps Script + planilhas
 (partida a frio de varios segundos, leitura de abas inteiras a cada acao, limite de execucoes).

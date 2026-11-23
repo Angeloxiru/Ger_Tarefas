@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS coletores (
   -- Situacao atual (mantida pelo app junto com coletores_log):
   responsavel  TEXT COLLATE NOCASE,                       -- codigo do funcionario; NULL = na base
   desde        TEXT,                                      -- quando foi retirado
-  alerta_6h_em TEXT                                       -- quando o alerta de 6h desta retirada foi gerado
+  alerta_6h_em TEXT,                                      -- quando o alerta de 6h desta retirada foi gerado
+  em_conserto  INTEGER NOT NULL DEFAULT 0 CHECK (em_conserto IN (0, 1))  -- 1 = em manutencao, nao pode ser retirado
 );
 
 CREATE TABLE IF NOT EXISTS config (
@@ -123,28 +124,35 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
   coletor     TEXT COLLATE NOCASE,
   codigo_func TEXT COLLATE NOCASE,
   nome        TEXT,
-  tipo        TEXT NOT NULL DEFAULT 'outro',              -- leitura_errada | limite_tentativas | assumido | atraso_6h | outro
+  tipo        TEXT NOT NULL DEFAULT 'outro',              -- leitura_errada | limite_tentativas | assumido | atraso_6h | conserto | outro
   descricao   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_ocorrencias_data ON ocorrencias (data_hora);
 
 -- ------------------------------ Views ------------------------------
+-- As views sao apagadas e recriadas a cada aplicacao do esquema (db/aplicar.js),
+-- para que mudancas na definicao cheguem ao banco que ja existe.
 
 -- Listas de apoio (lookup) para filtros e conferencias no console
-CREATE VIEW IF NOT EXISTS lkp_funcionarios AS
+DROP VIEW IF EXISTS lkp_funcionarios;
+CREATE VIEW lkp_funcionarios AS
   SELECT codigo, nome, nome_completo, cargo, perfil FROM funcionarios WHERE ativo = 1;
 
-CREATE VIEW IF NOT EXISTS lkp_tarefas AS
+DROP VIEW IF EXISTS lkp_tarefas;
+CREATE VIEW lkp_tarefas AS
   SELECT id_tarefa, nome, usa_qrcode_carga, tempo_maximo_min FROM tarefas WHERE ativa = 1;
 
-CREATE VIEW IF NOT EXISTS lkp_docas AS
+DROP VIEW IF EXISTS lkp_docas;
+CREATE VIEW lkp_docas AS
   SELECT codigo, nome FROM docas;
 
-CREATE VIEW IF NOT EXISTS lkp_coletores AS
+DROP VIEW IF EXISTS lkp_coletores;
+CREATE VIEW lkp_coletores AS
   SELECT coletor FROM coletores WHERE ativo = 1;
 
 -- Registros com nomes, carga e doca (historico, conferencias)
-CREATE VIEW IF NOT EXISTS vw_registros AS
+DROP VIEW IF EXISTS vw_registros;
+CREATE VIEW vw_registros AS
 SELECT r.id_registro, r.codigo_func, f.nome AS nome_func, f.nome_completo,
        r.id_tarefa, r.nome_tarefa, r.data_inicio, r.data_fim, r.status, r.finalizado_por,
        r.volumes_proporcionais,
@@ -157,7 +165,8 @@ LEFT JOIN cargas c ON c.id = (SELECT MIN(x.id) FROM cargas x WHERE x.id_registro
 LEFT JOIN docas d ON d.codigo = c.doca;
 
 -- Tarefas em andamento com tempo decorrido e limite
-CREATE VIEW IF NOT EXISTS vw_tarefas_abertas AS
+DROP VIEW IF EXISTS vw_tarefas_abertas;
+CREATE VIEW vw_tarefas_abertas AS
 SELECT r.id_registro, r.codigo_func, f.nome AS nome_func, r.id_tarefa, r.nome_tarefa, r.data_inicio,
        COALESCE(t.tempo_maximo_min, 240) AS tempo_maximo_min,
        CAST((julianday('now') - julianday(r.data_inicio)) * 1440 AS INTEGER) AS minutos_decorridos,
@@ -169,8 +178,9 @@ LEFT JOIN funcionarios f ON f.codigo = r.codigo_func
 WHERE r.status = 'em_andamento';
 
 -- Situacao de cada coletor (painel do ADM)
-CREATE VIEW IF NOT EXISTS vw_coletores_situacao AS
-SELECT c.coletor, c.ativo, c.responsavel AS cod_fun, f.nome AS nome, c.desde,
+DROP VIEW IF EXISTS vw_coletores_situacao;
+CREATE VIEW vw_coletores_situacao AS
+SELECT c.coletor, c.ativo, c.em_conserto, c.responsavel AS cod_fun, f.nome AS nome, c.desde,
        CASE WHEN c.responsavel IS NULL THEN 1 ELSE 0 END AS na_base,
        CASE WHEN c.desde IS NOT NULL AND c.responsavel IS NOT NULL
             THEN CAST((julianday('now') - julianday(c.desde)) * 1440 AS INTEGER) END AS minutos_fora
@@ -180,7 +190,8 @@ LEFT JOIN funcionarios f ON f.codigo = c.responsavel;
 -- Base da exportacao (ADM): uma linha por tarefa finalizada.
 -- qtd_itens = parte da carga de cada pessoa (volumes_proporcionais); se ainda nao
 -- calculado e a pessoa carregou sozinha, usa o total da carga.
-CREATE VIEW IF NOT EXISTS vw_exportacao AS
+DROP VIEW IF EXISTS vw_exportacao;
+CREATE VIEW vw_exportacao AS
 SELECT r.id_registro, r.nome_tarefa, r.codigo_func,
        COALESCE(NULLIF(f.nome_completo, ''), f.nome, r.codigo_func) AS nome_funcionario,
        r.data_inicio, r.data_fim,

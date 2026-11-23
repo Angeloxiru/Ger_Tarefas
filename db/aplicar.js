@@ -11,6 +11,12 @@ const fs = require('fs');
 const path = require('path');
 const DB = require('../js/db.js');
 
+// Colunas acrescentadas depois da criacao do banco (ALTER TABLE ... ADD COLUMN).
+// Se a coluna ja existe, o erro "duplicate column" e ignorado.
+const MIGRACOES = [
+  "ALTER TABLE coletores ADD COLUMN em_conserto INTEGER NOT NULL DEFAULT 0 CHECK (em_conserto IN (0, 1))"
+];
+
 const TABELAS = ['ocorrencias', 'coletores_log', 'coletores', 'alertas', 'cargas', 'registros', 'config', 'docas', 'tarefas', 'funcionarios'];
 
 function comandosDoSchema() {
@@ -26,7 +32,14 @@ async function main() {
   DB.configurar(url, token);
   DB.timeoutMs = 60000;
 
-  for (const s of comandosDoSchema()) await DB.executar(s, []);
+  const cmds = comandosDoSchema();
+  // 1) tabelas (CREATE TABLE IF NOT EXISTS), 2) migracoes de colunas, 3) indices e views
+  for (const s of cmds.filter(c => /^CREATE TABLE/i.test(c))) await DB.executar(s, []);
+  for (const m of MIGRACOES) {
+    try { await DB.executar(m, []); console.log('Migração aplicada:', m.slice(0, 60)); }
+    catch (e) { if (!/duplicate column/i.test(e.message)) throw e; }
+  }
+  for (const s of cmds.filter(c => !/^CREATE TABLE/i.test(c))) await DB.executar(s, []);
   console.log('Esquema aplicado.');
   if (!arquivo) return;
 

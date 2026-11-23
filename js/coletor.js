@@ -141,6 +141,9 @@ const Coletor = {
     if (sit.indisponivel) {
       return `<div class="coletor-chip nenhum"><span class="coletor-chip-nome">${nome}</span><span class="coletor-chip-tag">Situação indisponível</span></div>`;
     }
+    if (sit.em_conserto) {
+      return `<div class="coletor-chip nenhum"><span class="coletor-chip-nome">${nome}</span><span class="coletor-chip-tag">Em conserto</span></div>`;
+    }
     if (sit.na_base) {
       return `<div class="coletor-chip base"><span class="coletor-chip-nome"><i class="coletor-dot amarelo"></i>${nome}</span><span class="coletor-chip-tag">Na base</span></div>`;
     }
@@ -260,6 +263,9 @@ const Coletor = {
     }
 
     const sit = st.dados;
+    if (sit.em_conserto) {
+      return { liberado: false, mensagem: `O ${sit.coletor} está em conserto. Use outro coletor e avise o responsável.` };
+    }
     if (sit.na_base || this._mesmo(sit.cod_fun, func.codigo)) return { liberado: true };
 
     // Coletor com outra pessoa: ela esta executando tarefa?
