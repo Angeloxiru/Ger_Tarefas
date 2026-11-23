@@ -392,9 +392,12 @@ A cada mudanca em HTML/CSS/JS, troque a versao em **3 lugares** (mesmo numero no
 
 | Arquivo | Campo | Exemplo |
 |---------|-------|---------|
-| `js/config.js` | `APP_VERSION` | `'1.1.0'` -> `'1.1.1'` |
-| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-1.1.0'` -> `'ger-tarefas-1.1.1'` |
-| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=1.1.0` -> `?v=1.1.1` |
+| `js/config.js` | `APP_VERSION` | `'1.1.1'` -> `'1.1.2'` |
+| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-1.1.1'` -> `'ger-tarefas-1.1.2'` |
+| Todos os 4 HTMLs | `?v=` nos `<script>` **e no `<link>` do `css/style.css`** | `?v=1.1.1` -> `?v=1.1.2` |
+
+> O `?v=` no CSS e obrigatorio: sem ele o navegador pode usar o CSS antigo com o JavaScript novo
+> (foi o que aconteceu na 1.1.0, corrigido na 1.1.1).
 
 Depois: merge na `main` e aguarde 1-2 min para o GitHub Pages processar. O service worker detecta a
 versao nova, apaga o cache antigo e recarrega. **Como conferir num coletor:** a tela de login mostra
@@ -475,6 +478,14 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 ---
 
 ## Historico de versoes
+
+### 1.1.1 - Correcao: CSS desatualizado no navegador
+
+- O `css/style.css` era carregado sem `?v=` e o navegador continuava usando o estilo antigo com o
+  JavaScript novo (painel de coletores e modo computador apareciam sem formatacao).
+- Agora o CSS tem `?v=` como os scripts. Versao `1.1.0` -> `1.1.1`.
+
+**Arquivos:** 4 HTMLs, `js/config.js`, `service-worker.js`, `README.md`.
 
 ### 1.1.0 - Modo computador e melhorias do gestor/ADM
 
