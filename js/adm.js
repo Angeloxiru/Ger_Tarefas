@@ -33,6 +33,7 @@ const Adm = {
 
   // ---------------- Coletores ----------------
   async carregarColetores() {
+    if (typeof Desktop !== 'undefined' && Desktop.ativo) return Desktop.painelColetores();
     const el = document.getElementById('adm-coletores-lista');
     el.innerHTML = '<div class="loading visivel"><div class="spinner"></div><p>Carregando...</p></div>';
     const r = await API.get({ acao: 'adm_coletores' });

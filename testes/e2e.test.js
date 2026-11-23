@@ -82,6 +82,8 @@ const srv = http.createServer((req, res) => {
 
   // João inicia Conferência
   await page.waitForSelector('#btn-outras');
+  // painel no coletor (com vinculo): sem modo computador
+  assert.ok(!(await page.evaluate(() => document.body.classList.contains('modo-computador'))));
   await page.click('#btn-outras');
   await page.click('.task-item:has-text("Conferência")');
   await page.waitForSelector('#secao-ativa:not(.hidden)');
@@ -177,7 +179,8 @@ const srv = http.createServer((req, res) => {
   assert.strictEqual(q("SELECT status FROM registros WHERE id_registro='RVELHA'")[0].status, 'timeout');
   ok('ADM entra no gestor; painel aplicou timeout da tarefa vencida');
   await p2.click('.tab[data-tab="adm-coletores"]');
-  await p2.waitForSelector('#adm-coletores-lista table');
+  await p2.waitForSelector('#adm-coletores-lista .desk-col');   // computador: painel em cartoes
+  assert.ok(await p2.evaluate(() => document.body.classList.contains('modo-computador')));
   await shot(p2, 'adm-coletores');
   await p2.click('.tab[data-tab="adm-irregularidades"]');
   await p2.waitForSelector('.adm-oc');

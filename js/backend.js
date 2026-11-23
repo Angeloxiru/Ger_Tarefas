@@ -500,15 +500,18 @@
   async function historico(p) {
     const { ini, fim } = intervalo(p.data_inicio, p.data_fim);
     const filtro = String(p.funcionarios || '').split(',').map(cod).filter(Boolean);
-    const condFunc = filtro.length ? ` AND codigo_func IN (${filtro.map(() => '?').join(',')})` : '';
-    const campos = `id_registro, codigo_func, nome_func, nome_tarefa, data_inicio, data_fim, status, finalizado_por,
+    const tarefasF = String(p.tarefas || '').split(',').map(t => t.trim()).filter(Boolean);
+    const condFunc = (filtro.length ? ` AND codigo_func IN (${filtro.map(() => '?').join(',')})` : '') +
+                     (tarefasF.length ? ` AND id_tarefa IN (${tarefasF.map(() => '?').join(',')})` : '');
+    const argsF = filtro.concat(tarefasF);
+    const campos = `id_registro, codigo_func, nome_func, id_tarefa, nome_tarefa, data_inicio, data_fim, status, finalizado_por,
                     numero_carga, qtd_volumes, volumes_proporcionais, nome_doca, ajudante`;
 
     const [abertos, encerrados] = await DB.varias([
       [`SELECT ${campos} FROM vw_registros WHERE status = 'em_andamento' AND data_inicio >= ? AND data_inicio < ?${condFunc}
-        ORDER BY data_inicio DESC`, [ini, fim, ...filtro]],
+        ORDER BY data_inicio DESC`, [ini, fim, ...argsF]],
       [`SELECT ${campos} FROM vw_registros WHERE status <> 'em_andamento' AND data_inicio >= ? AND data_inicio < ?${condFunc}
-        ORDER BY data_inicio DESC LIMIT 200`, [ini, fim, ...filtro]]
+        ORDER BY data_inicio DESC LIMIT ${Math.min(parseInt(p.limite, 10) || 200, 2000)}`, [ini, fim, ...argsF]]
     ]);
 
     // Registros antigos sem volume gravado: calcula a distribuicao (uma vez por carga)
@@ -524,7 +527,7 @@
 
     const saida = abertos.concat(encerrados).map(r => ({
       id_registro: r.id_registro, codigo_func: r.codigo_func, nome_func: r.nome_func || r.codigo_func,
-      nome_tarefa: r.nome_tarefa, data_inicio: r.data_inicio, data_fim: r.data_fim, status: r.status,
+      id_tarefa: r.id_tarefa, nome_tarefa: r.nome_tarefa, data_inicio: r.data_inicio, data_fim: r.data_fim, status: r.status,
       finalizado_por: r.finalizado_por || '', numero_carga: r.numero_carga, qtd_volumes: r.qtd_volumes,
       volumes_proporcionais: r.volumes_proporcionais, nome_doca: r.nome_doca || null
     }));
@@ -789,6 +792,15 @@
     return { sucesso: true, dados: r };
   }
 
+  // Ultimas movimentacoes de um coletor (painel de coletores no computador)
+  async function admColetorHistorico(p) {
+    const coletor = String(p.coletor || '').trim();
+    if (!coletor) return erro('Coletor não informado.');
+    const r = await DB.query(`SELECT data_hora, codigo_func, nome, acao, origem FROM coletores_log
+      WHERE coletor = ? ORDER BY data_hora DESC LIMIT 15`, [coletor]);
+    return { sucesso: true, dados: r };
+  }
+
   async function admOcorrencias(p) {
     const { ini, fim } = intervalo(p.data_inicio, p.data_fim);
     const r = await DB.query(`SELECT data_hora, coletor, codigo_func, nome, tipo, descricao FROM ocorrencias
@@ -864,6 +876,7 @@
     coletor_lista: coletorLista,
     adm_coletores: admColetores,
     adm_ocorrencias: admOcorrencias,
+    adm_coletor_historico: admColetorHistorico,
     adm_exportacao: admExportacao
   };
 

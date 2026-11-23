@@ -13,8 +13,8 @@ const Gestor = {
     return await API.get(params);
   },
 
-  async buscarHistorico(dataInicio, dataFim, funcionarios) {
-    const params = { acao: 'historico' };
+  async buscarHistorico(dataInicio, dataFim, funcionarios, extras) {
+    const params = Object.assign({ acao: 'historico' }, extras || {});
     if (dataInicio) params.data_inicio = dataInicio;
     if (dataFim) params.data_fim = dataFim;
     if (funcionarios) params.funcionarios = funcionarios;

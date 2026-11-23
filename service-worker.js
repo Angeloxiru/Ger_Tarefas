@@ -4,7 +4,7 @@
 // Network-first evita o PWA ficar preso em versao antiga (causa do "trava no login").
 
 // Bumpar junto com CONFIG.APP_VERSION em config.js a cada deploy
-const CACHE_NAME = 'ger-tarefas-v11';
+const CACHE_NAME = 'ger-tarefas-v12';
 
 // Tempo maximo aguardando a rede antes de cair pro cache (shell)
 const SHELL_TIMEOUT = 4000;
@@ -28,6 +28,7 @@ const ASSETS_ESTATICOS = [
   './js/ui.js',
   './js/coletor.js',
   './js/adm.js',
+  './js/desktop.js',
   './js/vendor/html5-qrcode.min.js',
   './manifest.json',
   './icon-192.png',

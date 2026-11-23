@@ -3,7 +3,7 @@
 
 const CONFIG = {
   // Versao do app — bumpar aqui e em CACHE_NAME do service-worker.js a cada deploy
-  APP_VERSION: 'v11',
+  APP_VERSION: 'v12',
 
   // Banco de dados Turso (desde a v11 o app fala direto com o banco).
   // ATENCAO: este token da leitura e escrita no banco e fica visivel no repositorio

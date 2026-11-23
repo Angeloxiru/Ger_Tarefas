@@ -44,6 +44,7 @@ Ger_Tarefas/
 │   ├── auth.js             # Login/logout, sessao e perfis (funcionario, gestor, adm)
 │   ├── coletor.js          # Vinculo do aparelho, retirada/devolucao do coletor
 │   ├── adm.js              # Telas do ADM: coletores, irregularidades, exportacao
+│   ├── desktop.js          # Modo computador: layout largo, painel de coletores, filtros do historico
 │   ├── tarefas.js, carregamento.js, gestor.js, scanner.js, ui.js
 │   └── vendor/             # html5-qrcode (leitor de QR) e SheetJS (gera .xlsx)
 │
@@ -115,6 +116,20 @@ INSERT INTO tarefas (id_tarefa, nome, usa_qrcode_carga, tempo_maximo_min) VALUES
 | `gestor` | Painel do gestor: Tempo Real, Tarefas, Historico, Alertas, Raio X |
 | `adm` | Tudo do gestor **+** abas **Coletores** (situacao de cada coletor), **Irregularidades** (filtro por data, 45 dias) e **Exportacao** (.xlsx por periodo) |
 
+### Modo computador (desde a v12)
+O app trata como **computador** o navegador **sem coletor vinculado** (nunca leu um QR
+`COLETOR:xx`). Nesse caso (so gestor e ADM conseguem entrar) o painel do gestor ganha:
+- **Largura total da tela**, abas numa linha so, Tempo Real em colunas e tabelas largas.
+- **Historico:** filtros por **tipo de tarefa**, **funcionario** (lista, sem escanear cracha),
+  **situacao** e **maximo de linhas** (200 a 2000); resumo com registros, funcionarios, tempo das
+  finalizadas e volumes; coluna de duracao.
+- **Coletores (ADM):** painel em cartoes no estilo do antigo Ger_Gestao_Coletores: verde = base,
+  azul = em uso, laranja = mais de 6h fora, borda vermelha piscando = mesma pessoa com 2 coletores.
+  Clique no cartao mostra as ultimas movimentacoes (log de 7 dias). Atualiza sozinho a cada 30 s.
+
+**No coletor Zebra (com vinculo) nada disso e ativado:** todas as regras de estilo ficam sob
+`body.modo-computador` e o `js/desktop.js` nao faz nada quando ha vinculo.
+
 ### Exportacao (ADM)
 Planilha `.xlsx` de tarefas finalizadas no periodo escolhido, com as mesmas colunas da antiga
 exportacao do Apps Script: Tarefas Diarias, Qtd de Tarefas, Qtd Itens, Soma de Tempo, Volume por
@@ -135,11 +150,11 @@ do antigo Apps Script.
 | `listar_tarefas`, `status_funcionario` | Tarefas ativas; tarefa aberta (ja encerra por timeout se venceu) |
 | `iniciar_tarefa`, `finalizar_tarefa` | Inicia/finaliza; no carregamento calcula e grava a distribuicao de volumes |
 | `verificar_doca`, `registrar_carga`, `workers_carga`, `distribuicao_carga` | Fluxo de carregamento |
-| `painel_gestor`, `historico`, `raiox` | Painel do gestor |
+| `painel_gestor`, `historico`, `raiox` | Painel do gestor (`historico` aceita `tarefas` e `limite`) |
 | `registrar_alerta`, `listar_alertas` | Alertas |
 | `cadastrar_funcionario`, `cadastrar_tarefa` | Cadastros pelo app (opcional; o padrao e o console) |
 | `coletor_status`, `coletor_registrar`, `coletor_assumir`, `coletor_evento`, `coletor_lista` | Controle de coletor |
-| `adm_coletores`, `adm_ocorrencias`, `adm_exportacao` | Telas do ADM |
+| `adm_coletores`, `adm_ocorrencias`, `adm_exportacao`, `adm_coletor_historico` | Telas do ADM |
 | `versao` | Versao do backend (`turso-1`) |
 
 Operacoes que mexem em mais de uma tabela (retirar, devolver, assumir coletor, gravar volumes)
@@ -353,9 +368,9 @@ A cada mudanca em HTML/CSS/JS, bumpe **3 numeros**:
 
 | Arquivo | Campo | Exemplo |
 |---------|-------|---------|
-| `js/config.js` | `APP_VERSION` | `'v11'` -> `'v12'` |
-| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v11'` -> `'ger-tarefas-v12'` |
-| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=11` -> `?v=12` |
+| `js/config.js` | `APP_VERSION` | `'v12'` -> `'v13'` |
+| `service-worker.js` | `CACHE_NAME` | `'ger-tarefas-v12'` -> `'ger-tarefas-v13'` |
+| Todos os 4 HTMLs | `?v=` nos `<script>` | `?v=12` -> `?v=13` |
 
 Depois: merge na `main` e aguarde 1-2 min para o GitHub Pages processar. O service worker detecta a
 versao nova, apaga o cache antigo e recarrega. **Como conferir num coletor:** a tela de login mostra
@@ -434,6 +449,19 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 ---
 
 ## Historico de versoes
+
+### v12 - Modo computador
+
+- Novo `js/desktop.js`: quando o navegador nao tem coletor vinculado, o painel do gestor/ADM usa a
+  largura toda da tela, o Historico ganha filtros (tipo de tarefa, funcionario por lista, situacao,
+  limite de linhas), resumo e coluna de duracao, e a aba Coletores vira o painel em cartoes com
+  historico por coletor e atualizacao automatica.
+- `js/backend.js`: `historico` com filtro por tarefa e limite; acao nova `adm_coletor_historico`.
+- Coletor Zebra sem nenhuma mudanca visual ou de uso (verificado no teste de ponta a ponta).
+- Versao de frontend `v11` -> `v12`.
+
+**Arquivos:** `js/desktop.js` (novo), `js/backend.js`, `js/gestor.js`, `js/adm.js`, `gestor.html`,
+`css/style.css`, `js/config.js`, `service-worker.js`, 4 HTMLs (`?v=12`), `testes/e2e.test.js`, `README.md`.
 
 ### v11 - Banco de dados Turso (sai o Google)
 
