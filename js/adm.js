@@ -2,7 +2,8 @@
 //
 // - Coletores: situacao de cada coletor (antigo painel do Ger_Gestao_Coletores)
 // - Irregularidades: ocorrencias dos coletores (antigo e-mail diario), guardadas por 45 dias
-// - Exportacao: planilha .xlsx de tarefas finalizadas por periodo
+// - Exp/Imp: exporta .xlsx de tarefas finalizadas por periodo e importa o relatorio
+//   "Tarefas Realizadas" do WMS (outro app) para a tabela wms_tarefas
 
 const Adm = {
   _xlsxCarregado: false,
@@ -147,5 +148,137 @@ const Adm = {
       msg.className = 'msg msg-error';
       msg.textContent = e.message || 'Erro ao exportar.';
     }
+  },
+
+  // ---------------- Importacao WMS ----------------
+  _importacao: null,
+
+  // Data do Excel (numero de serie ou texto dd/mm/aaaa hh:mm:ss) no horario de Brasilia -> ISO UTC
+  _dataExcel(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000) + 3 * 3600000).toISOString();
+    if (v instanceof Date) return v.toISOString();
+    const m = String(v).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4].padStart(2, '0')}:${m[5]}:${m[6] || '00'}-03:00`).toISOString();
+    const d = new Date(v);
+    return isNaN(d) ? null : d.toISOString();
+  },
+
+  _segundos(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return Math.round(v * 86400);          // fracao de dia do Excel
+    const p = String(v).trim().split(':').map(Number);
+    if (p.some(isNaN)) return null;
+    return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p.length === 2 ? p[0] * 60 + p[1] : null;
+  },
+
+  async lerImportacao() {
+    const input = document.getElementById('adm-imp-arquivo');
+    const previa = document.getElementById('adm-imp-previa');
+    const msg = document.getElementById('adm-imp-msg');
+    msg.className = 'msg hidden';
+    previa.innerHTML = '';
+    this._importacao = null;
+    const arq = input.files && input.files[0];
+    if (!arq) return;
+    previa.innerHTML = '<div class="loading visivel"><div class="spinner"></div><p>Lendo arquivo...</p></div>';
+    try {
+      await this._carregarXlsx();
+      const wb = XLSX.read(await arq.arrayBuffer(), { type: 'array', cellDates: false });
+      const linhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null });
+      const hi = linhas.findIndex(l => l.some(c => String(c || '').trim() === 'Número'));
+      if (hi < 0) throw new Error('Não encontrei a coluna "Número". Confira se é o relatório "Tarefas Realizadas".');
+      const cab = linhas[hi].map(c => String(c || '').trim());
+      const col = nome => cab.indexOf(nome);
+      const obrig = ['Número', 'Endereço Inicial', 'Dt. Aceite', 'Dt. Conclusão', 'Execução', 'Cód. Aplicação', 'Aplicação', 'Cód. Funcionário', 'Funcionário', 'Qtde. Itens'];
+      const faltando = obrig.filter(c => col(c) < 0);
+      if (faltando.length) throw new Error('Colunas não encontradas: ' + faltando.join(', '));
+      const iQt = col('Qt Endereços');
+      const registros = [];
+      let invalidas = 0;
+      for (const l of linhas.slice(hi + 1)) {
+        if (!l || l[col('Número')] === null || String(l[col('Número')]).trim() === '') continue;
+        const r = {
+          numero: String(l[col('Número')]).trim(),
+          endereco_inicial: String(l[col('Endereço Inicial')] || '').trim(),
+          dt_aceite: this._dataExcel(l[col('Dt. Aceite')]),
+          dt_conclusao: this._dataExcel(l[col('Dt. Conclusão')]),
+          execucao_seg: this._segundos(l[col('Execução')]),
+          cod_aplicacao: String(l[col('Cód. Aplicação')] || '').trim(),
+          aplicacao: String(l[col('Aplicação')] || '').trim(),
+          cod_func_wms: String(l[col('Cód. Funcionário')] === null ? '' : l[col('Cód. Funcionário')]).trim(),
+          nome_func_wms: String(l[col('Funcionário')] || '').trim(),
+          qtde_itens: l[col('Qtde. Itens')],
+          qt_enderecos: iQt >= 0 ? l[iQt] : null
+        };
+        if (r.execucao_seg === null && r.dt_aceite && r.dt_conclusao) r.execucao_seg = Math.round((new Date(r.dt_conclusao) - new Date(r.dt_aceite)) / 1000);
+        if (!r.dt_aceite || !r.cod_aplicacao || !r.cod_func_wms) { invalidas++; continue; }
+        registros.push(r);
+      }
+      if (!registros.length) throw new Error('Nenhuma tarefa válida no arquivo.');
+
+      const res = await API.get({ acao: 'adm_wms_importar', registros, simular: true });
+      if (!res.sucesso) throw new Error(res.mensagem);
+      this._importacao = { registros, arquivo: arq.name };
+      const d = res.dados;
+      const sem = Object.entries(d.funcionarios_sem_vinculo);
+      previa.innerHTML = `
+        <div class="adm-imp-resumo">
+          <div><b>${d.linhas.toLocaleString('pt-BR')}</b> tarefas</div>
+          <div><b>${d.novas.toLocaleString('pt-BR')}</b> novas</div>
+          <div><b>${d.atualizadas.toLocaleString('pt-BR')}</b> já existem (serão atualizadas)</div>
+          <div class="${d.sem_vinculo ? 'adm-imp-alerta' : ''}"><b>${d.sem_vinculo}</b> sem funcionário vinculado</div>
+        </div>
+        <p class="adm-nota">Período: ${this._dataHora(d.periodo_ini)} a ${this._dataHora(d.periodo_fim)}${invalidas ? ` · ${invalidas} linha(s) ignorada(s) por falta de dados` : ''}${d.repetidas_no_arquivo ? ` · ${d.repetidas_no_arquivo} repetida(s) no arquivo` : ''}</p>
+        <table class="data-table adm-imp-tabela"><thead><tr><th>Tarefa</th><th>Qtd</th></tr></thead><tbody>
+          ${Object.entries(d.por_tarefa).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<tr><td>${this._esc(t)}</td><td>${n}</td></tr>`).join('')}
+        </tbody></table>
+        ${sem.length ? `<div class="msg msg-warning" style="margin-top:12px;">Códigos do WMS sem funcionário no cadastro (as tarefas serão importadas mesmo assim): ${sem.map(([c, n]) => `${this._esc(c)} = ${this._esc(n)}`).join('; ')}. Para vincular, preencha <code>codigo_wms</code> na tabela funcionarios e importe de novo.</div>` : ''}
+        <button class="btn btn-success" id="adm-imp-confirmar" style="margin-top:12px;">Confirmar importação</button>`;
+      document.getElementById('adm-imp-confirmar').addEventListener('click', () => this.confirmarImportacao());
+    } catch (e) {
+      previa.innerHTML = '';
+      msg.className = 'msg msg-error';
+      msg.textContent = e.message || 'Erro ao ler o arquivo.';
+    }
+  },
+
+  async confirmarImportacao() {
+    if (!this._importacao) return;
+    const btn = document.getElementById('adm-imp-confirmar');
+    const msg = document.getElementById('adm-imp-msg');
+    btn.disabled = true;
+    msg.className = 'msg msg-info';
+    msg.textContent = 'Importando...';
+    const sessao = Auth.obterSessao() || {};
+    const res = await API.get({
+      acao: 'adm_wms_importar', registros: this._importacao.registros, arquivo: this._importacao.arquivo,
+      codigo_adm: sessao.codigo,
+      aoProgresso: (n, total) => { msg.textContent = `Importando... ${n.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`; }
+    });
+    if (!res.sucesso) {
+      msg.className = 'msg msg-error';
+      msg.textContent = res.mensagem + ' Nada foi perdido: pode tentar de novo, as tarefas já gravadas serão só atualizadas.';
+      btn.disabled = false;
+      return;
+    }
+    msg.className = 'msg msg-success';
+    msg.textContent = `Importação concluída: ${res.dados.novas} novas e ${res.dados.atualizadas} atualizadas.`;
+    this._importacao = null;
+    document.getElementById('adm-imp-previa').innerHTML = '';
+    document.getElementById('adm-imp-arquivo').value = '';
+    this.carregarImportacoes();
+  },
+
+  async carregarImportacoes() {
+    const el = document.getElementById('adm-imp-historico');
+    if (!el) return;
+    const r = await API.get({ acao: 'adm_wms_importacoes' });
+    if (!r.sucesso) { el.innerHTML = `<div class="msg msg-error">${this._esc(r.mensagem)}</div>`; return; }
+    if (!r.dados.length) { el.innerHTML = '<p class="adm-nota" style="margin-top:0;">Nenhuma importação ainda.</p>'; return; }
+    el.innerHTML = `<div class="table-wrapper"><table class="data-table"><thead><tr><th>Quando</th><th>Arquivo</th><th>Linhas</th><th>Novas</th><th>Atualizadas</th><th>Sem vínculo</th><th>Período</th><th>Por</th></tr></thead><tbody>
+      ${r.dados.map(i => `<tr><td>${this._dataHora(i.data_hora)}</td><td>${this._esc(i.arquivo || '-')}</td><td>${i.linhas}</td><td>${i.novas}</td>
+        <td>${i.atualizadas}</td><td>${i.sem_vinculo}</td><td>${this._dataHora(i.periodo_ini)} a ${this._dataHora(i.periodo_fim)}</td>
+        <td>${this._esc(i.nome_adm || i.importado_por || '-')}</td></tr>`).join('')}</tbody></table></div>`;
   }
 };

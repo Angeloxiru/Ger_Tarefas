@@ -22,8 +22,10 @@ CREATE TABLE IF NOT EXISTS funcionarios (
   ativo         INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
   perfil        TEXT NOT NULL DEFAULT 'funcionario' CHECK (perfil IN ('funcionario', 'gestor', 'adm')),
   senha         TEXT,                                     -- vazio = entra sem senha
-  criado_em     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  criado_em     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  codigo_wms    TEXT                                      -- codigo do funcionario no outro app (WMS), ex.: 33
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_funcionarios_codigo_wms ON funcionarios (codigo_wms) WHERE codigo_wms IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS tarefas (
   id_tarefa        TEXT PRIMARY KEY,                      -- ex.: T001
@@ -129,6 +131,56 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
 );
 CREATE INDEX IF NOT EXISTS ix_ocorrencias_data ON ocorrencias (data_hora);
 
+-- ------------------------------ Tarefas do outro app (WMS) ------------------------------
+-- Importadas pelo ADM (aba Exp/Imp) a partir do relatorio "Tarefas Realizadas" (.xlsx).
+-- Chave = numero da tarefa: importar de novo a mesma tarefa SOBRESCREVE a linha.
+
+-- Aplicacoes (tipos de tarefa) do WMS, atualizadas a cada importacao
+CREATE TABLE IF NOT EXISTS lkp_aplicacoes (
+  cod_aplicacao TEXT PRIMARY KEY,                         -- ex.: CSE020WIS
+  nome          TEXT NOT NULL,                            -- ex.: Separacao por paletes
+  atualizado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wms_tarefas (
+  numero           TEXT PRIMARY KEY,                      -- Numero da tarefa no WMS
+  endereco_inicial TEXT NOT NULL,                         -- ex.: 12B00101A
+  deposito         TEXT,                                  -- 1   (1o caractere)
+  predio           TEXT,                                  -- 2   (2o caractere)
+  rua              TEXT,                                  -- B   (3o caractere)
+  posicao          TEXT,                                  -- 001 (4o ao 6o)
+  andar            TEXT,                                  -- 01A (7o ao 9o)
+  dt_aceite        TEXT NOT NULL,                         -- ISO UTC (arquivo vem no horario de Brasilia)
+  dt_conclusao     TEXT,
+  execucao_seg     INTEGER,                               -- Execucao em segundos (= conclusao - aceite)
+  cod_aplicacao    TEXT NOT NULL,                         -- ex.: CSE020WIS
+  tarefa           TEXT NOT NULL,                         -- nome final: Separacao Manual / Separacao Empilhadeira / nome da aplicacao
+  cod_func_wms     TEXT NOT NULL,                         -- Cod. Funcionario no WMS, ex.: 33
+  nome_func_wms    TEXT,                                  -- nome como veio no arquivo
+  codigo_func      TEXT COLLATE NOCASE,                   -- nosso codigo (PL33) na hora da importacao; NULL = sem vinculo
+  qtde_itens       INTEGER,
+  qt_enderecos     INTEGER,                               -- so vem em Separacao
+  id_importacao    INTEGER,
+  importado_em     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_wms_tarefas_aceite ON wms_tarefas (dt_aceite);
+CREATE INDEX IF NOT EXISTS ix_wms_tarefas_func ON wms_tarefas (codigo_func, dt_aceite);
+CREATE INDEX IF NOT EXISTS ix_wms_tarefas_tarefa ON wms_tarefas (tarefa, dt_aceite);
+
+-- Registro de cada importacao (quem, quando, quantas linhas)
+CREATE TABLE IF NOT EXISTS wms_importacoes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_hora   TEXT NOT NULL,
+  arquivo     TEXT,
+  linhas      INTEGER NOT NULL,
+  novas       INTEGER NOT NULL,
+  atualizadas INTEGER NOT NULL,
+  sem_vinculo INTEGER NOT NULL,
+  periodo_ini TEXT,
+  periodo_fim TEXT,
+  importado_por TEXT
+);
+
 -- ------------------------------ Views ------------------------------
 -- As views sao apagadas e recriadas a cada aplicacao do esquema (db/aplicar.js),
 -- para que mudancas na definicao cheguem ao banco que ja existe.
@@ -205,3 +257,31 @@ FROM registros r
 LEFT JOIN funcionarios f ON f.codigo = r.codigo_func
 LEFT JOIN cargas c ON c.id = (SELECT MIN(x.id) FROM cargas x WHERE x.id_registro = r.id_registro)
 WHERE r.status = 'finalizada' AND r.data_fim IS NOT NULL AND r.data_fim >= r.data_inicio;
+
+-- Tarefas do WMS com o nome do funcionario no nosso cadastro
+DROP VIEW IF EXISTS vw_wms_tarefas;
+CREATE VIEW vw_wms_tarefas AS
+SELECT w.numero, w.tarefa, w.cod_aplicacao, a.nome AS aplicacao,
+       w.codigo_func, COALESCE(f.nome, w.nome_func_wms) AS nome_func, w.cod_func_wms, w.nome_func_wms,
+       w.endereco_inicial, w.deposito, w.predio, w.rua, w.posicao, w.andar,
+       w.dt_aceite, w.dt_conclusao, w.execucao_seg, w.qtde_itens, w.qt_enderecos,
+       substr(datetime(w.dt_aceite, '-3 hours'), 1, 10) AS dia
+FROM wms_tarefas w
+LEFT JOIN funcionarios f ON f.codigo = w.codigo_func
+LEFT JOIN lkp_aplicacoes a ON a.cod_aplicacao = w.cod_aplicacao;
+
+-- Resumo por dia (Brasilia), funcionario e tarefa
+DROP VIEW IF EXISTS vw_wms_resumo_dia;
+CREATE VIEW vw_wms_resumo_dia AS
+SELECT dia, codigo_func, nome_func, tarefa,
+       COUNT(*) AS qtd_tarefas,
+       SUM(COALESCE(qtde_itens, 0)) AS itens,
+       SUM(COALESCE(qt_enderecos, 0)) AS enderecos,
+       SUM(COALESCE(execucao_seg, 0)) AS execucao_seg
+FROM vw_wms_tarefas
+GROUP BY dia, codigo_func, nome_func, tarefa;
+
+-- Nomes finais de tarefa do WMS (para filtros)
+DROP VIEW IF EXISTS lkp_tarefas_wms;
+CREATE VIEW lkp_tarefas_wms AS
+SELECT tarefa, COUNT(*) AS qtd FROM wms_tarefas GROUP BY tarefa;
