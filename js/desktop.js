@@ -196,14 +196,15 @@ const Desktop = {
       const linhas = lista.map(r => {
         const ini = dia(r.data_inicio), fim = dia(r.data_fim);
         const dur = r.status === 'finalizada' && ini && fim ? (fim - ini) / 86400000 : null;
-        // datas como data/hora do Excel no horario de Brasilia
-        const excel = d => d ? new Date(d.getTime() - 3 * 3600000) : null;
+        // Data/hora do Excel (numero de serie) ja no horario de Brasilia (UTC-3).
+        // Calculado aqui para a biblioteca nao aplicar o fuso do computador de novo.
+        const excel = d => d ? (d.getTime() - 3 * 3600000) / 86400000 + 25569 : null;
         return [r.nome_func || r.codigo_func, r.codigo_func, r.nome_tarefa, excel(ini), excel(fim), dur,
           rot[r.status] || r.status, r.nome_doca || '', r.numero_carga || '',
           r.volumes_proporcionais != null ? Number(r.volumes_proporcionais) : (r.qtd_volumes != null ? Number(r.qtd_volumes) : '')];
       });
       const cab = ['Funcionário', 'Código', 'Tarefa', 'Início', 'Fim', 'Duração', 'Situação', 'Doca', 'Carga', 'Volumes'];
-      const ws = XLSX.utils.aoa_to_sheet([cab].concat(linhas), { cellDates: true });
+      const ws = XLSX.utils.aoa_to_sheet([cab].concat(linhas));
       for (let i = 1; i <= linhas.length; i++) {
         ['D', 'E'].forEach(c => { const cel = ws[c + (i + 1)]; if (cel) cel.z = 'dd/mm/yyyy hh:mm'; });
         const d = ws['F' + (i + 1)]; if (d) d.z = '[hh]:mm';
