@@ -515,6 +515,18 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 
 ## Historico de versoes
 
+### 1.2.2 - Correcao: horario no Excel do Historico
+
+- O "Baixar Excel" do Historico (modo computador) saia com 3 horas a menos (tela 08:11, Excel
+  05:11): o horario ja convertido para Brasilia era convertido de novo pela biblioteca do Excel
+  usando o fuso do computador. Agora a data vai como numero de serie do Excel ja em Brasilia, sem
+  depender do fuso do computador.
+- Conferido com dados reais (Keterson, 23/11): Excel igual a tela com o computador em Brasilia e em
+  Toquio. O teste de ponta a ponta passou a rodar o computador em Brasilia e comparar Excel x tela.
+
+**Arquivos:** `js/desktop.js`, `testes/e2e.test.js`, `js/config.js`, `service-worker.js`,
+4 HTMLs (`?v=1.2.2`), `README.md`.
+
 ### 1.2.1 - Horario de Brasilia forcado em todas as telas
 
 - Historico e Alertas (coletor), "Com voce desde" do coletor e "Atualizado as" usavam o fuso do

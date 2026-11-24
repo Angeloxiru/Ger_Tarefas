@@ -168,7 +168,7 @@ const srv = http.createServer((req, res) => {
   mock.db.exec("INSERT INTO registros (id_registro,codigo_func,id_tarefa,nome_tarefa,data_inicio,status) VALUES ('RVELHA','GS1','T003','Conferência','2026-01-01T10:00:00.000Z','em_andamento')");
 
   // ADM no computador
-  const pc = await browser.newContext({ viewport: { width: 1100, height: 800 }, deviceScaleFactor: 1, serviceWorkers: 'block', acceptDownloads: true });
+  const pc = await browser.newContext({ viewport: { width: 1100, height: 800 }, deviceScaleFactor: 1, serviceWorkers: 'block', acceptDownloads: true, timezoneId: 'America/Sao_Paulo' });
   const p2 = await pagina(pc);
   await p2.goto(BASE + 'index.html');
   await logar(p2, 'AD1');
@@ -246,6 +246,10 @@ const srv = http.createServer((req, res) => {
   const h = XLSX.utils.sheet_to_json(XLSX.read(fs.readFileSync(arq2)).Sheets['Histórico'], { header: 1 });
   assert.deepStrictEqual(h[0], ['Funcionário', 'Código', 'Tarefa', 'Início', 'Fim', 'Duração', 'Situação', 'Doca', 'Carga', 'Volumes']);
   assert.ok(h.length === 2 && h[1][2] === 'Carregamento' && h[1][9] === 410, JSON.stringify(h));
+  // Horario no Excel = horario da tela (Brasilia), mesmo com o computador em Brasilia
+  const xlsInicio = XLSX.SSF.format('dd/mm/yyyy hh:mm', h[1][3]);
+  const telaInicio = await p2.locator('.desk-tabela tbody tr td:nth-child(3)').first().textContent();
+  assert.strictEqual(xlsInicio, telaInicio.replace(',', ''), `Excel ${xlsInicio} x tela ${telaInicio}`);
   ok('histórico filtrado por tarefa e baixado em Excel');
 
   // Gestor comum não vê abas ADM
