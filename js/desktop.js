@@ -74,7 +74,7 @@ const Desktop = {
   // Chamado depois de cada atualizacao do Tempo Real
   aposAtualizarTempoReal() {
     const el = document.getElementById('desk-atualizado');
-    if (el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' · atualiza a cada 1 min';
+    if (el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' }) + ' · atualiza a cada 1 min';
     this.aplicarBusca();
   },
 
@@ -239,7 +239,7 @@ const Desktop = {
     const conserto = lista.filter(c => c.em_conserto).length;
     const atrasados = lista.filter(c => !c.na_base && c.minutos_fora >= 360).length;
     const duplicados = lista.filter(c => !c.na_base && porPessoa[c.cod_fun] > 1).length;
-    const agora = new Date().toLocaleTimeString('pt-BR');
+    const agora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     el.innerHTML = `
       <div class="desk-resumo desk-resumo-5">

@@ -62,7 +62,7 @@ const Gestor = {
     }
 
     container.innerHTML = alertas.map(a => {
-      const data = a.data_alerta ? new Date(a.data_alerta).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      const data = a.data_alerta ? new Date(a.data_alerta).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : '-';
       const emissorHtml = a.emissor ? `<div style="font-size:0.75rem;color:#888;margin-top:4px;">Emitido por: ${a.emissor}</div>` : '';
       return `
         <div class="card" style="margin-bottom:8px;border-left:4px solid #ef4444;">
@@ -177,8 +177,8 @@ const Gestor = {
       else if (reg.status === 'finalizada') badgeClass = 'badge-success';
       else if (reg.status === 'timeout') badgeClass = 'badge-danger';
 
-      const inicio = reg.data_inicio ? new Date(reg.data_inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
-      const fim = reg.data_fim ? new Date(reg.data_fim).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      const inicio = reg.data_inicio ? new Date(reg.data_inicio).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : '-';
+      const fim = reg.data_fim ? new Date(reg.data_fim).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : '-';
       const nomeFunc = reg.nome_func || reg.codigo_func;
 
       return `
