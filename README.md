@@ -66,8 +66,20 @@ Ger_Tarefas/
 
 Endereco: `libsql://tarefas-angeloxiru.aws-us-east-1.turso.io`. Esquema completo em `db/schema.sql`.
 
-Convencoes: datas em texto ISO UTC (`2026-11-19T18:10:51.774Z`), o app converte para o horario
-de Brasilia; booleanos como 0/1; codigos sem diferenciar maiusculas.
+Convencoes: booleanos como 0/1; codigos sem diferenciar maiusculas.
+
+### Padrao de horario (vale para tudo)
+| Onde | Fuso |
+|---|---|
+| **Gravado no banco** (nosso app, rotinas e importacao do WMS) | **UTC**, texto ISO com `Z`: `2026-11-23T12:01:46.600Z` |
+| **Exibido no app** (todas as telas, coletor e computador) | **Brasilia**, forcado no codigo (`timeZone: 'America/Sao_Paulo'`), mesmo que o aparelho esteja em outro fuso |
+| **Exportacoes** (.xlsx do ADM e do Historico) | **Brasilia** |
+| **Filtros por dia** (Historico, Raio X, Irregularidades, Exportacao) | Dia de **Brasilia** (00:00 a 23:59) |
+| **Importacao do WMS** | O arquivo vem em Brasilia e e **convertido para UTC** ao gravar (07:47 no arquivo = `10:47Z` no banco) |
+| **Codigo do registro** (`R20261123090146PL41`) | Brasilia |
+
+No console do Turso, para ver em Brasilia: `datetime(data_inicio, '-3 hours')`. Filtrar o dia 23/11
+de Brasilia: `data_inicio >= '2026-11-23T03:00:00Z' AND data_inicio < '2026-11-24T03:00:00Z'`.
 
 ### Cadastros (mantidos pelo console do Turso)
 | Tabela | Colunas | Observacao |
@@ -502,6 +514,16 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 ---
 
 ## Historico de versoes
+
+### 1.2.1 - Horario de Brasilia forcado em todas as telas
+
+- Historico e Alertas (coletor), "Com voce desde" do coletor e "Atualizado as" usavam o fuso do
+  aparelho; agora forcam `America/Sao_Paulo`, como o resto do app. Testado com o navegador em
+  Toquio, UTC e Brasilia: sempre mostra o horario de Brasilia.
+- README: secao "Padrao de horario" (grava em UTC, mostra/exporta/filtra em Brasilia).
+
+**Arquivos:** `js/gestor.js`, `js/coletor.js`, `js/desktop.js`, `painel.html`, `js/config.js`,
+`service-worker.js`, 4 HTMLs (`?v=1.2.1`), `README.md`.
 
 ### 1.2.0 - Importacao das tarefas do WMS
 
