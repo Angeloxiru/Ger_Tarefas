@@ -119,6 +119,20 @@ Regras da importacao:
   Tarefa Origem, Tarefa Quebrada, Cliente, Pedido Origem, Rota, Classe, Qt Skus.
 - Funcionario novo: ao cadastrar pelo console, preencha tambem o `codigo_wms`.
 
+### Trocas de bateria das empilhadeiras (enviadas pelo Ger_Baterias)
+O registro continua no sistema **Ger_Baterias** (QR code na parede, Apps Script + planilha). A cada
+troca, o Apps Script envia uma copia para este banco; se o envio falhar, uma rotina de 15 min reenvia.
+| Tabela | Conteudo |
+|---|---|
+| `bat_trocas` | Uma linha por troca: data_hora, codigo_func, empilhadeira, bateria_instalada, bateria_removida, nivel_agua, duracao_uso_anterior_h (horas de horimetro), horimetro, **minutos_creditados (15)**. Chave = data/hora + empilhadeira (reenviar nao duplica) |
+| `bat_empilhadeiras` | Situacao atual de cada empilhadeira (copia da aba Equipamentos) |
+| `bat_baterias` | Situacao atual de cada bateria (copia da aba Baterias) |
+
+- Cada troca soma **15 minutos** ao tempo trabalhado do funcionario (so N1 da bonificacao), sem
+  checagem de sobreposicao.
+- No app, as trocas aparecem no **Historico** (tarefa "Troca de bateria (N03)", 15 min) e no
+  **Raio X** (tarefa "Troca de bateria"). No computador, o filtro de tarefa tem a opcao "Troca de bateria".
+
 ### Views
 | View | Uso |
 |---|---|
@@ -130,6 +144,9 @@ Regras da importacao:
 | `vw_wms_tarefas` | Tarefas do WMS com nome do funcionario, aplicacao e dia (Brasilia) |
 | `vw_wms_resumo_dia` | Por dia, funcionario e tarefa: quantidade, itens, enderecos e tempo de execucao |
 | `lkp_tarefas_wms` | Nomes de tarefa do WMS e quantidade (para filtros) |
+| `vw_bat_trocas`, `vw_bat_minutos_dia` | Trocas com nome e dia; minutos creditados por funcionario e dia |
+| `vw_bat_consumo_empilhadeira`, `vw_bat_desempenho_bateria` | Trocas e media de horas por empilhadeira / por bateria |
+| `lkp_empilhadeiras`, `lkp_baterias` | Listas de empilhadeiras e baterias |
 
 ### Cadastrar pelo console do Turso (exemplos)
 ```sql
@@ -514,6 +531,18 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 ---
 
 ## Historico de versoes
+
+### 1.3.0 - Trocas de bateria das empilhadeiras
+
+- Banco: tabelas `bat_trocas`, `bat_empilhadeiras`, `bat_baterias`; views `vw_bat_trocas`,
+  `vw_bat_minutos_dia`, `vw_bat_consumo_empilhadeira`, `vw_bat_desempenho_bateria`,
+  `lkp_empilhadeiras`, `lkp_baterias`. Ja aplicado no Turso.
+- O sistema Ger_Baterias (repositorio proprio) envia cada troca ao banco; registro pelo QR nao muda.
+- Historico e Raio X mostram "Troca de bateria" (15 min por troca); filtro de tarefa com a opcao.
+- Bonificacao: cada troca soma 15 min ao N1.
+
+**Arquivos:** `db/schema.sql`, `js/backend.js`, `js/desktop.js`, `js/config.js`, `service-worker.js`,
+4 HTMLs (`?v=1.3.0`), `README.md`.
 
 ### 1.2.2 - Correcao: horario no Excel do Historico
 
