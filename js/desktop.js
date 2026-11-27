@@ -125,6 +125,7 @@ const Desktop = {
     const [t, f] = await Promise.all([API.get({ acao: 'listar_tarefas' }), API.get({ acao: 'raiox', tipo: 'funcionarios' })]);
     const selT = document.getElementById('desk-hist-tarefa');
     if (t.sucesso) t.dados.forEach(x => selT.insertAdjacentHTML('beforeend', `<option value="${this._esc(x.id_tarefa)}">${this._esc(x.nome)}</option>`));
+    selT.insertAdjacentHTML('beforeend', '<option value="BAT">Troca de bateria</option>');   // Ger_Baterias
     const selF = document.getElementById('desk-hist-func');
     if (f.sucesso) f.dados.funcionarios.forEach(x => selF.insertAdjacentHTML('beforeend', `<option value="${this._esc(x.codigo)}">${this._esc(x.nome)}</option>`));
   },

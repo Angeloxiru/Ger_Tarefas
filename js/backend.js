@@ -525,13 +525,36 @@
       }
     }
 
-    const saida = abertos.concat(encerrados).map(r => ({
+    // Trocas de bateria (Ger_Baterias): aparecem como tarefa "Troca de bateria" de 15 min
+    const trocas = (!tarefasF.length || tarefasF.includes(ID_TROCA_BATERIA))
+      ? await trocasDeBateria(ini, fim, filtro) : [];
+    const encerradosComTrocas = encerrados.concat(trocas).sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+
+    const saida = abertos.concat(encerradosComTrocas).map(r => ({
       id_registro: r.id_registro, codigo_func: r.codigo_func, nome_func: r.nome_func || r.codigo_func,
       id_tarefa: r.id_tarefa, nome_tarefa: r.nome_tarefa, data_inicio: r.data_inicio, data_fim: r.data_fim, status: r.status,
       finalizado_por: r.finalizado_por || '', numero_carga: r.numero_carga, qtd_volumes: r.qtd_volumes,
       volumes_proporcionais: r.volumes_proporcionais, nome_doca: r.nome_doca || null
     }));
     return { sucesso: true, dados: saida };
+  }
+
+  // ---------- Trocas de bateria (tabela bat_trocas, enviada pelo Ger_Baterias) ----------
+  const ID_TROCA_BATERIA = 'BAT';
+
+  // Trocas no periodo como linhas no formato do historico (duracao = minutos creditados)
+  async function trocasDeBateria(ini, fim, funcionarios) {
+    const cond = funcionarios && funcionarios.length ? ` AND codigo_func IN (${funcionarios.map(() => '?').join(',')})` : '';
+    const r = await DB.query(`SELECT id_troca, codigo_func, nome_func, data_hora, empilhadeira, bateria_instalada,
+        bateria_removida, minutos_creditados FROM vw_bat_trocas
+      WHERE data_hora >= ? AND data_hora < ?${cond} ORDER BY data_hora DESC`, [ini, fim].concat(funcionarios || []));
+    return r.map(t => ({
+      id_registro: 'BAT|' + t.id_troca, codigo_func: t.codigo_func, nome_func: t.nome_func || t.codigo_func,
+      id_tarefa: ID_TROCA_BATERIA, nome_tarefa: `Troca de bateria (${t.empilhadeira})`,
+      data_inicio: t.data_hora, data_fim: new Date(ms(t.data_hora) + Number(t.minutos_creditados || 15) * 60000).toISOString(),
+      status: 'finalizada', finalizado_por: 'funcionario', numero_carga: null, qtd_volumes: null,
+      volumes_proporcionais: null, nome_doca: null, minutos: Number(t.minutos_creditados || 15)
+    }));
   }
 
   async function registrarAlerta(p) {
@@ -605,6 +628,11 @@
       id_tarefa: r.id_tarefa, nome_tarefa: r.nome_tarefa,
       tempo_ms: r.data_fim ? Math.max(ms(r.data_fim) - ms(r.data_inicio), 0) : 0,
       volumes: r.volumes_proporcionais === null ? null : Number(r.volumes_proporcionais)
+    }));
+    // Trocas de bateria: 15 min cada, como a tarefa "Troca de bateria"
+    (await trocasDeBateria(ini, fim, codigo ? [codigo] : [])).forEach(t => itens.push({
+      codigo_func: cod(t.codigo_func), nome_func: t.nome_func, id_tarefa: ID_TROCA_BATERIA,
+      nome_tarefa: 'Troca de bateria', tempo_ms: t.minutos * 60000, volumes: null
     }));
 
     if (tipo === 'equipe') {

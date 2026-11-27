@@ -181,6 +181,52 @@ CREATE TABLE IF NOT EXISTS wms_importacoes (
   importado_por TEXT
 );
 
+-- ------------------------------ Baterias das empilhadeiras ------------------------------
+-- Enviadas pelo sistema Ger_Baterias (Apps Script do QR code da parede) a cada troca.
+-- Cada troca soma minutos_creditados (15) ao tempo trabalhado do funcionario (so N1),
+-- sem checagem de sobreposicao com outras tarefas.
+
+CREATE TABLE IF NOT EXISTS bat_trocas (
+  id_troca               TEXT PRIMARY KEY,                -- data_hora UTC + '|' + empilhadeira (enviar de novo nao duplica)
+  id_planilha            INTEGER,                         -- coluna ID da aba Registros
+  data_hora              TEXT NOT NULL,                   -- ISO UTC
+  codigo_func            TEXT NOT NULL COLLATE NOCASE,    -- cracha (mesmo cadastro do app Tarefas)
+  empilhadeira           TEXT NOT NULL COLLATE NOCASE,    -- ex.: N03
+  bateria_instalada      TEXT COLLATE NOCASE,             -- ex.: BAT05
+  bateria_removida       TEXT COLLATE NOCASE,             -- NULL se a empilhadeira estava sem bateria
+  nivel_agua             TEXT,                            -- OK | Atenção | Crítico
+  duracao_uso_anterior_h REAL,                            -- horas de horimetro que a bateria removida durou
+  horimetro              REAL,
+  minutos_creditados     INTEGER NOT NULL DEFAULT 15,
+  origem                 TEXT NOT NULL DEFAULT 'apps_script',  -- apps_script | importado
+  recebido_em            TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_bat_trocas_data ON bat_trocas (data_hora);
+CREATE INDEX IF NOT EXISTS ix_bat_trocas_func ON bat_trocas (codigo_func, data_hora);
+CREATE INDEX IF NOT EXISTS ix_bat_trocas_empilhadeira ON bat_trocas (empilhadeira, data_hora);
+
+-- Situacao atual das empilhadeiras (copia da aba Equipamentos, atualizada pela sincronizacao)
+CREATE TABLE IF NOT EXISTS bat_empilhadeiras (
+  codigo           TEXT PRIMARY KEY COLLATE NOCASE,
+  bateria_atual    TEXT,
+  ultima_troca     TEXT,                                  -- ISO UTC
+  ultimo_horimetro REAL,
+  atualizado_em    TEXT NOT NULL
+);
+
+-- Situacao atual das baterias (copia da aba Baterias, atualizada pela sincronizacao)
+CREATE TABLE IF NOT EXISTS bat_baterias (
+  codigo               TEXT PRIMARY KEY COLLATE NOCASE,
+  status               TEXT,                              -- Em Uso | Em Carga
+  localizacao          TEXT,                              -- empilhadeira ou Carregador
+  inicio_status        TEXT,                              -- ISO UTC
+  ultimo_nivel_agua    TEXT,
+  total_usos           INTEGER,
+  media_duracao_h      REAL,
+  horimetro_instalacao REAL,
+  atualizado_em        TEXT NOT NULL
+);
+
 -- ------------------------------ Views ------------------------------
 -- As views sao apagadas e recriadas a cada aplicacao do esquema (db/aplicar.js),
 -- para que mudancas na definicao cheguem ao banco que ja existe.
@@ -285,3 +331,44 @@ GROUP BY dia, codigo_func, nome_func, tarefa;
 DROP VIEW IF EXISTS lkp_tarefas_wms;
 CREATE VIEW lkp_tarefas_wms AS
 SELECT tarefa, COUNT(*) AS qtd FROM wms_tarefas GROUP BY tarefa;
+
+-- Trocas de bateria com nome do funcionario e dia (Brasilia)
+DROP VIEW IF EXISTS vw_bat_trocas;
+CREATE VIEW vw_bat_trocas AS
+SELECT t.id_troca, t.data_hora, substr(datetime(t.data_hora, '-3 hours'), 1, 10) AS dia,
+       t.codigo_func, f.nome AS nome_func, t.empilhadeira, t.bateria_instalada, t.bateria_removida,
+       t.nivel_agua, t.duracao_uso_anterior_h, t.horimetro, t.minutos_creditados, t.origem
+FROM bat_trocas t
+LEFT JOIN funcionarios f ON f.codigo = t.codigo_func;
+
+-- Minutos creditados por funcionario e dia (bonificacao N1)
+DROP VIEW IF EXISTS vw_bat_minutos_dia;
+CREATE VIEW vw_bat_minutos_dia AS
+SELECT dia, codigo_func, nome_func, COUNT(*) AS trocas, SUM(minutos_creditados) AS minutos
+FROM vw_bat_trocas
+GROUP BY dia, codigo_func, nome_func;
+
+-- Consumo por empilhadeira: quantas trocas e quanto durou cada bateria (horas de horimetro)
+DROP VIEW IF EXISTS vw_bat_consumo_empilhadeira;
+CREATE VIEW vw_bat_consumo_empilhadeira AS
+SELECT empilhadeira, COUNT(*) AS trocas,
+       ROUND(AVG(CASE WHEN duracao_uso_anterior_h > 0 THEN duracao_uso_anterior_h END), 2) AS media_horas_por_bateria,
+       MIN(data_hora) AS primeira_troca, MAX(data_hora) AS ultima_troca
+FROM bat_trocas
+GROUP BY empilhadeira;
+
+-- Desempenho por bateria: quantas vezes foi removida e quanto durou em media
+DROP VIEW IF EXISTS vw_bat_desempenho_bateria;
+CREATE VIEW vw_bat_desempenho_bateria AS
+SELECT bateria_removida AS bateria, COUNT(*) AS usos,
+       ROUND(AVG(CASE WHEN duracao_uso_anterior_h > 0 THEN duracao_uso_anterior_h END), 2) AS media_horas,
+       SUM(CASE WHEN nivel_agua <> 'OK' THEN 1 ELSE 0 END) AS alertas_agua
+FROM bat_trocas
+WHERE bateria_removida IS NOT NULL
+GROUP BY bateria_removida;
+
+DROP VIEW IF EXISTS lkp_empilhadeiras;
+CREATE VIEW lkp_empilhadeiras AS SELECT codigo, bateria_atual, ultima_troca FROM bat_empilhadeiras;
+
+DROP VIEW IF EXISTS lkp_baterias;
+CREATE VIEW lkp_baterias AS SELECT codigo, status, localizacao FROM bat_baterias;
