@@ -1,6 +1,6 @@
 # Modelo do relatório PDF de performance
 
-Versão 1.2 de 25/11/2026, aprovada pela gerência. Este modelo é produzido pelo arquivo `claude/7_gerador_relatorio_performance.py`. O PDF deve SEMPRE ser gerado por esse código, sem montar o layout à mão e sem alterar o código. Assim, todos os funcionários recebem o mesmo cálculo e a mesma visualização.
+Versão 1.3 de 27/11/2026, aprovada pela gerência. Este modelo é produzido pelo arquivo `claude/7_gerador_relatorio_performance.py`. O PDF deve SEMPRE ser gerado por esse código, sem montar o layout à mão e sem alterar o código. Assim, todos os funcionários recebem o mesmo cálculo e a mesma visualização.
 
 ## Princípios
 - O relatório é entregue impresso ao funcionário, em preto e branco. Nada depende de cor: a diferença entre situações é feita por preenchimento preto, borda grossa, borda tracejada, símbolos (✔ ✘ – ↑ ↓) e palavras.
@@ -34,13 +34,14 @@ Toda função com menos de 3h no mês (com ou sem meta) não conta para o N2 e �
 4. Tabela de funções: Função | Horas | Produzido | Produtividade | Meta | Resultado contra a meta. Ordenada da função com mais horas para a com menos, com "Outras" no fim e a linha "Total de horas válidas".
    - Função com meta e 3h ou mais: barra horizontal com escala até 150% da meta e um traço vertical na meta (100%); preenchimento cinza escuro se atingiu, cinza claro se não; ao lado, "✔ 111%" ou "✘ 87%".
    - Função sem meta com 3h ou mais: Produtividade "-", Meta "sem meta", Resultado "não conta para o N2".
+   - Trocas de bateria: linha "Troca de bateria" (função sem meta), com "N trocas" na coluna Produzido e a mesma regra do "Outras" (menos de 3h vai para "Outras"). Na grade da página 2, coluna "Troca de bateria" com as horas creditadas no dia.
 5. "Comparação com o mês anterior (Mês/AAAA)": Função | Horas (mês anterior) | Horas (mês atual) | Variação das horas | Produtiv. (mês anterior) | Produtiv. (mês atual) | Variação da produtividade.
    - Primeira linha: Total de horas válidas. Depois, uma linha para cada função que teve 3h ou mais em pelo menos um dos dois meses; o resto vai para "Outras". Última linha: Alertas.
    - Variação só com seta e valor, sem palavras de avaliação: horas "↑ +12h05", "↓ -3h56" ou "="; produtividade "↑ +23%", "↓ -2%" ou "="; alertas "↑ +2", "↓ -1" ou "=". "-" quando a função não foi avaliada no N2 em um dos meses. As palavras "melhorou" e "piorou" não aparecem em nenhum lugar do relatório.
    - Abaixo, em cinza: os níveis do mês anterior ("Níveis em Outubro/2026: N1 ✔ N2 ✔ N3 ✔"), a legenda "↑ aumentou, ↓ diminuiu, = igual ao mês anterior" e, no relatório parcial, "Mês atual parcial: as horas ainda não estão completas, compare principalmente a produtividade."
    - Sem dados do mês anterior (funcionário novo ou mês anterior sem nenhuma hora válida): o bloco mostra só a frase "Sem dados do mês anterior para comparação."
 6. "Como as horas foram contadas", três linhas só com totais:
-   - Horas válidas no mês: XXhXX (App Tarefas XXhXX + WMS XXhXX).
+   - Horas válidas no mês: XXhXX (App Tarefas XXhXX + WMS XXhXX). Com trocas de bateria no mês, acrescenta " + Trocas de bateria XXhXX (N trocas)".
    - Tarefas do app não contadas por conflito com o WMS: quantidade e horas, com "Quando o app e o WMS registram o mesmo horário, vale o WMS." Sem casos: "Nenhuma".
    - Tarefas encerradas automaticamente (timeout) e somadas: quantidade e horas somadas. Sem casos: "Nenhuma".
 7. "Alertas do mês (N)": Data | Descrição | Emissor (crachá), em letra 7 pt para caber na folha. A descrição é impressa como está gravada no banco (quebras de linha viram "; "). Sem casos: "Nenhum alerta no mês."
@@ -58,4 +59,5 @@ O relatório termina na página 2, sem bloco de observações.
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 24/11/2026 | Modelo criado (5 ou mais páginas, colorido). |
+| 1.3 | 27/11/2026 | Trocas de bateria (regra 2): linha "Troca de bateria" na tabela de funções (sem meta, "N trocas"), coluna na grade por dia e parcela "Trocas de bateria" na linha de horas válidas. Sem trocas no mês, o PDF fica igual ao da versão 1.2. |
 | 1.2 | 25/11/2026 | Novo layout para impressão em preto e branco em 1 folha frente e verso; caixas de níveis com ✔/✘; barra contra a meta; agrupamento "Outras" (< 3h); comparação com o mês anterior (só setas e valores); conflitos e timeouts só em totais; anomalias, WMS sem vínculo e ajuste do Recebimento fora do PDF; grade de horas por dia e função; produtividade diária em gráficos por função; sem gráfico de horas acumuladas. |

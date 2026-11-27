@@ -18,7 +18,7 @@ Apura, todo mês, o desempenho de cada funcionário da logística no **Programa 
 
 | Nível | Nome | Critério resumido |
 |---|---|---|
-| N1 | Assiduidade | 100h ou mais de horas válidas no mês |
+| N1 | Assiduidade | 100h ou mais de horas válidas no mês (app + WMS + trocas de bateria) |
 | N2 | Produtividade | Só com N1. Bater a meta em toda função com meta em que trabalhou 3h ou mais |
 | N3 | Excelência | Só com N1 e N2. Menos de 3 alertas no mês |
 
@@ -44,6 +44,7 @@ Banco Turso **"tarefas"** (o mesmo do app Tarefas), com dois sistemas gravados j
 | App Tarefas | `registros`, `cargas`, `alertas` | Tarefas válidas: status `finalizada` ou `timeout` |
 | WMS | `wms_tarefas` | Ligação pelo crachá em `codigo_func` (vazio = sem vínculo, não entra para ninguém) |
 | Rotina diária | `conflitos` | Gravada só pela rotina do arquivo 8 |
+| Ger_Baterias | `bat_trocas` | Trocas de bateria das empilhadeiras: `minutos_creditados` (15) somam só no N1 (regra 2) |
 | Cadastro | `funcionarios` | Crachá no formato PL33 |
 
 - **Todas as datas do banco estão em UTC.** Para agrupar por dia ou exibir horários, converter para Brasília (UTC-3). O dia de uma tarefa é o dia de Brasília em que ela começou.
@@ -58,16 +59,16 @@ No projeto do claude.ai, os arquivos 6 a 9 ficam dentro de uma pasta `claude/` (
 | Arquivo | O que é | Quando mexer |
 |---|---|---|
 | `1_descricao_e_instrucoes.md` | Descrição e instruções do projeto no claude.ai | Mudou o comportamento esperado do Claude |
-| `2_regras_de_calculo.md` | **Regras oficiais de cálculo** (versão atual: 1.5, de 26/11/2026) e histórico de decisões | Qualquer mudança de regra |
+| `2_regras_de_calculo.md` | **Regras oficiais de cálculo** (versão atual: 1.6, de 27/11/2026) e histórico de decisões | Qualquer mudança de regra |
 | `3_dicionario_de_dados.md` | Tabelas e colunas do banco | Mudou o banco ou o significado de uma coluna |
-| `4_modelo_relatorio_pdf.md` | Como o PDF individual deve ficar (versão 1.2) | Mudou o visual ou o conteúdo do PDF |
+| `4_modelo_relatorio_pdf.md` | Como o PDF individual deve ficar (versão 1.3) | Mudou o visual ou o conteúdo do PDF |
 | `5_como_criar_o_projeto.md` | Passo a passo para montar o projeto no claude.ai | Mudou a configuração do projeto |
-| `6_padrao_relatorio_performance.md` | Procedimento do relatório individual, consultas Q1 a Q6, Q3A, Q4A e Q5A (versão 1.3) | Mudou o relatório individual |
-| `7_gerador_relatorio_performance.py` | Código que gera o PDF individual (versão 1.2) | Mudou o relatório individual |
+| `6_padrao_relatorio_performance.md` | Procedimento do relatório individual, consultas Q1 a Q7, Q3A, Q4A, Q5A e Q7A (versão 1.4) | Mudou o relatório individual |
+| `7_gerador_relatorio_performance.py` | Código que gera o PDF individual (versão 1.3) | Mudou o relatório individual |
 | `8_rotina_conflitos_alertas.md` | Procedimento da rotina diária (versão 1.1) | Mudou a rotina diária |
 | `8_rotina_conflitos_alertas.py` | Script da rotina diária (versão 1.1) | Mudou a rotina diária |
-| `9_fechamento_equipe.md` | Procedimento do Desempenho da Equipe, consultas QE1 a QE3 (versão 1.0) | Mudou o fechamento |
-| `9_gerador_resumo_equipe.py` | Código do resumo do RH, impressão e conferência (versão 1.0) | Mudou o fechamento |
+| `9_fechamento_equipe.md` | Procedimento do Desempenho da Equipe, consultas QE1 a QE3 (versão 1.1) | Mudou o fechamento |
+| `9_gerador_resumo_equipe.py` | Código do resumo do RH, impressão e conferência (versão 1.1) | Mudou o fechamento |
 
 ### Arquivos que mudam sempre juntos
 
@@ -88,13 +89,14 @@ A bonificação lê os dados que o app grava. Mudanças nestes pontos do app mud
 
 | Ponto do app | Onde está | O que afeta na bonificação |
 |---|---|---|
-| Estrutura das tabelas `funcionarios`, `registros`, `cargas`, `alertas`, `wms_tarefas`, `conflitos` | `db/schema.sql` | Todas as consultas (arquivos 6, 8 e 9) e o dicionário (arquivo 3) |
+| Estrutura das tabelas `funcionarios`, `registros`, `cargas`, `alertas`, `wms_tarefas`, `conflitos`, `bat_trocas` | `db/schema.sql` | Todas as consultas (arquivos 6, 8 e 9) e o dicionário (arquivo 3) |
 | Nomes das tarefas do app (Carregamento, Movimentações, Conferência etc.) | cadastro `tarefas` no banco | Funções e metas (regra 4). Nome novo ou alterado fica sem meta até a gerência decidir |
 | Tempo máximo de cada tarefa antes do timeout (`tempo_maximo_min`, hoje: Carregamento 300 min, Balança 60 min, demais 240 min) | cadastro `tarefas` no banco, aplicado por `js/backend.js` e `scripts/rotinas.js` | Tarefas com status `timeout` entram nas horas (regra 2). Obs.: `TIMEOUT_MS` em `js/config.js` só muda a cor do cronômetro na tela, não encerra tarefas |
 | Cálculo de `volumes_proporcionais` no Carregamento | `js/backend.js` | Produtividade do Carregamento (regra 4) e o ponto em aberto da seção 7 |
 | Gravação de alertas pelo app | `js/backend.js` | Contagem do N3 (regra 5) |
+| Envio das trocas de bateria (`bat_trocas`, `minutos_creditados`) | sistema Ger_Baterias (Apps Script) | Horas do N1 (regra 2). Mudar os minutos por troca muda o N1 |
 | Importação do WMS | processo de importação para `wms_tarefas` | Horas, produtividade e conflitos. Mês com importação incompleta não fecha (regras 7 e 13) |
-| Índices de `codigo_func` com `dt_aceite`, `data_inicio` e `data_alerta` | `db/schema.sql` | Custo das leituras na Turso (regra 10). Não remover |
+| Índices de `codigo_func` com `dt_aceite`, `data_inicio`, `data_alerta` e `data_hora` (`bat_trocas`) | `db/schema.sql` | Custo das leituras na Turso (regra 10). Não remover |
 
 > A tabela `conflitos` foi criada direto no banco em 25/11/2026 pela rotina diária. Desde 27/11/2026 a definição dela está também em `db/schema.sql` (idêntica à do banco). Ao mudar a estrutura, atualize os dois e o arquivo 3.
 
@@ -110,7 +112,7 @@ Estas regras protegem custo, dados e confiança no resultado. Não mudam sem ped
 - **A Turso cobra por linha lida.** Em 24/11/2026 uma consulta sem filtro leu 168.139.239 linhas.
   - Proibido self-join em `wms_tarefas` ou `registros`.
   - Proibido calcular conflito ou sobreposição no banco. Isso é feito só em Python (geradores 7 e 9 e script 8).
-  - Toda consulta em `wms_tarefas`, `registros`, `cargas` e `alertas` filtra por funcionário e período, nas colunas originais em UTC. Exceções (só período): Q2, Q6, QE1 e QE2.
+  - Toda consulta em `wms_tarefas`, `registros`, `cargas`, `alertas` e `bat_trocas` filtra por funcionário e período, nas colunas originais em UTC. Exceções (só período): Q2, Q6, QE1 e QE2.
   - Não usar as views `vw_...` nas análises. View não guarda resultado e não economiza leitura.
   - Sem consultas exploratórias. Consulta nova fora dos arquivos 6, 8 e 9: mostrar o SQL e pedir confirmação antes.
 
@@ -121,6 +123,7 @@ Estas regras protegem custo, dados e confiança no resultado. Não mudam sem ped
   - Rotina diária (regra 12): **soma** das sobreposições com todas as tarefas do WMS passando de 5 minutos.
 - Funções medidas em pallets (Separação Empilhadeira, Realocação, Armazenagem, Recebimento) usam **quantidade de tarefas**, nunca volumes.
 - Recebimento com menos de 2 minutos conta como 2 minutos (só no tempo, nunca na checagem de conflito, e não aparece no PDF).
+- Trocas de bateria (`bat_trocas`): `minutos_creditados` somam às horas do N1 como função sem meta "Troca de bateria", sempre, sem checagem de sobreposição ou conflito, e nunca entram no N2.
 - Nunca inventar, estimar ou completar dados. Férias, atestados, faltas, experiência de 90 dias e falhas de sistema não estão no banco e são tratados pela gerência.
 
 ### Geradores
@@ -141,7 +144,7 @@ Estas regras protegem custo, dados e confiança no resultado. Não mudam sem ped
 | Armazenagem | pallets/hora | ≥ 20 |
 | Recebimento | pallets/hora | ≥ 24 |
 
-Funções sem meta (contam só para o N1): Movimentações, Conferência, Limpeza, Avarias, Balança, Chocolate, Inventário cíclico, Armaz. Corte.
+Funções sem meta (contam só para o N1): Movimentações, Conferência, Limpeza, Avarias, Balança, Chocolate, Inventário cíclico, Armaz. Corte, Troca de bateria.
 
 ---
 
@@ -184,7 +187,7 @@ Casos sem decisão da gerência. Enquanto estiverem aqui, o Claude segue a regra
 
 | Data | Pedido por | Mudança | Arquivos | Status |
 |---|---|---|---|---|
-| 27/11/2026 | Gestor | Trocas de bateria das empilhadeiras: cada troca registrada na tabela `bat_trocas` (vinda do Ger_Baterias) soma 15 minutos (`minutos_creditados`) às horas do funcionário que fez a troca (`codigo_func`), contando somente para o N1 (Assiduidade). Não entra no cálculo de produtividade do N2. Usar a data e hora da troca (`data_hora`) para definir o mês. | 2 (nova regra e histórico), 3 (tabela `bat_trocas`), 4, 6 e 7 (horas do N1 e consulta da tabela), 9 (.md, se mudar o fechamento) | PENDENTE |
+| 27/11/2026 | Gestor | Trocas de bateria das empilhadeiras: cada troca registrada na tabela `bat_trocas` (vinda do Ger_Baterias) soma 15 minutos (`minutos_creditados`) às horas do funcionário que fez a troca (`codigo_func`), contando somente para o N1 (Assiduidade). Não entra no cálculo de produtividade do N2. Usar a data e hora da troca (`data_hora`) para definir o mês. | 2 (nova regra e histórico), 3 (tabela `bat_trocas`), 4, 6 e 7 (horas do N1 e consulta da tabela), 9 (.md, se mudar o fechamento) | APLICADO 27/11/2026 (regras 1.6; detalhes decididos pela gerência no histórico do arquivo 2) |
 
 ---
 
@@ -195,3 +198,4 @@ Casos sem decisão da gerência. Enquanto estiverem aqui, o Claude segue a regra
 | 27/11/2026 | 1.5 | Criação do guia |
 | 27/11/2026 | 1.5 | Item PENDENTE: trocas de bateria (+15 min no N1), pedido pelo Gestor. Arquivo 5 com a lista completa de conhecimento |
 | 27/11/2026 | 1.5 | Seção 4: timeout vem de `tempo_maximo_min` (cadastro `tarefas`), não de `TIMEOUT_MS`; tabela `conflitos` incluída em `db/schema.sql` |
+| 27/11/2026 | 1.6 | Item das trocas de bateria APLICADO: versões dos arquivos 2 (1.6), 4 (1.3), 6 (1.4), 7 (1.3), 9 .md e .py (1.1); `bat_trocas` nas fontes de dados, nas dependências do app (seção 4), na regra de filtro do banco e nas funções sem meta |
