@@ -56,6 +56,8 @@ Ger_Tarefas/
 ├── scripts/rotinas.js      # Rotinas agendadas (timeout, alerta 6h, limpeza)
 ├── .github/workflows/rotinas.yml  # Agenda das rotinas no GitHub Actions (a cada 30 min)
 ├── testes/                 # Banco Turso simulado + teste de ponta a ponta
+├── bonificacao/            # Projeto de bonificacao da logistica (regras, procedimentos e geradores usados pelo Claude)
+│   └── CLAUDE.md           # Guia do projeto: comece por aqui
 ├── manifest.json, service-worker.js, icon-192.png, icon-512.png
 └── apps-script/            # LEGADO (Google Apps Script), nao e mais usado
 ```
@@ -98,6 +100,7 @@ de Brasilia: `data_inicio >= '2026-11-23T03:00:00Z' AND data_inicio < '2026-11-2
 | `alertas` | Alertas registrados pelo gestor |
 | `coletores_log` | Retiradas e devolucoes. **Apagado apos 7 dias** |
 | `ocorrencias` | Irregularidades dos coletores (antigo `registro_diario`). **Apagadas apos 45 dias** |
+| `conflitos` | Tarefas do app em conflito com o WMS. Gravada so pela rotina diaria da bonificacao (ver `bonificacao/`). Criada direto no banco em 25/11/2026; definicao incluida em `db/schema.sql` em 27/11/2026 (identica a do banco) |
 
 ### Tarefas do outro app (WMS), importadas pelo ADM
 | Tabela | Conteudo |
@@ -527,6 +530,16 @@ Tudo e **HTTPS (TCP 443)**. Libere os dois dominios:
 - Latencia: 40 a 200 ms por acao (servidor nos EUA, `aws-us-east-1`).
 - Historico do gestor mostra no maximo 200 registros encerrados por busca (como antes).
 - O historico de tarefas nao e apagado; o log de coletores e (7 dias) e as ocorrencias tambem (45 dias).
+
+---
+
+## Bonificacao da logistica (pasta `bonificacao/`)
+
+O Programa de Bonificacao por Niveis (N1 Assiduidade, N2 Produtividade, N3 Excelencia) e apurado pelo Claude, num projeto do claude.ai, lendo este mesmo banco Turso. A pasta `bonificacao/` guarda as regras de calculo, os procedimentos e os geradores de PDF desse projeto.
+
+- **Comece por `bonificacao/CLAUDE.md`**: explica o que e importante, o que nao pode ser quebrado e como registrar mudancas.
+- O Claude le esse guia no inicio de cada relatorio, fechamento ou rotina. Mudancas pedidas pela gerencia entram na secao "Mudancas para o Claude aplicar" do guia.
+- **Mudancas no app tambem podem afetar a bonificacao** (estrutura das tabelas em `db/schema.sql`, nomes das tarefas, `TIMEOUT_MS`, calculo de `volumes_proporcionais`, gravacao de alertas, importacao do WMS, indices). A lista completa esta na secao 4 do guia. Ao mexer nesses pontos, registre no guia.
 
 ---
 

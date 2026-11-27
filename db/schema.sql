@@ -131,6 +131,27 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
 );
 CREATE INDEX IF NOT EXISTS ix_ocorrencias_data ON ocorrencias (data_hora);
 
+-- Conflitos entre o app Tarefas e o WMS, gravados SO pela rotina diaria da bonificacao
+-- (ver bonificacao/CLAUDE.md). Criada direto no banco em 25/11/2026; definicao copiada aqui.
+CREATE TABLE IF NOT EXISTS conflitos (
+  id_conflito         INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_func         TEXT NOT NULL COLLATE NOCASE,     -- cracha (PL33)
+  id_registro         TEXT NOT NULL UNIQUE,             -- tarefa do app em conflito (1 conflito por tarefa do app)
+  nome_tarefa         TEXT NOT NULL,                    -- tarefa do app
+  inicio_app          TEXT NOT NULL,                    -- ISO UTC
+  fim_app             TEXT NOT NULL,                    -- ISO UTC
+  numero_wms          TEXT NOT NULL,                    -- tarefa do WMS (a de aceite mais cedo com mais de 5 min em comum)
+  tarefa_wms          TEXT NOT NULL,
+  aceite_wms          TEXT NOT NULL,                    -- ISO UTC
+  conclusao_wms       TEXT NOT NULL,                    -- ISO UTC
+  inicio_sobreposicao TEXT NOT NULL,                    -- ISO UTC; define o mes do conflito e a data do alerta
+  sobreposicao_seg    INTEGER NOT NULL,                 -- segundos em comum (> 300)
+  data_deteccao       TEXT NOT NULL,                    -- ISO UTC, quando a rotina gravou
+  id_alerta           TEXT                              -- alerta que usou este conflito; NULL = aguardando
+);
+CREATE INDEX IF NOT EXISTS ix_conflitos_sobreposicao ON conflitos (inicio_sobreposicao);
+CREATE INDEX IF NOT EXISTS ix_conflitos_func ON conflitos (codigo_func, inicio_sobreposicao);
+
 -- ------------------------------ Tarefas do outro app (WMS) ------------------------------
 -- Importadas pelo ADM (aba Exp/Imp) a partir do relatorio "Tarefas Realizadas" (.xlsx).
 -- Chave = numero da tarefa: importar de novo a mesma tarefa SOBRESCREVE a linha.
