@@ -184,7 +184,7 @@ Casos sem decisão da gerência. Enquanto estiverem aqui, o Claude segue a regra
 
 | Data | Pedido por | Mudança | Arquivos | Status |
 |---|---|---|---|---|
-| | | | | |
+| 27/11/2026 | Gestor | Trocas de bateria das empilhadeiras: cada troca registrada na tabela `bat_trocas` (vinda do Ger_Baterias) soma 15 minutos (`minutos_creditados`) às horas do funcionário que fez a troca (`codigo_func`), contando somente para o N1 (Assiduidade). Não entra no cálculo de produtividade do N2. Usar a data e hora da troca (`data_hora`) para definir o mês. | 2 (nova regra e histórico), 3 (tabela `bat_trocas`), 4, 6 e 7 (horas do N1 e consulta da tabela), 9 (.md, se mudar o fechamento) | PENDENTE |
 
 ---
 
@@ -193,4 +193,5 @@ Casos sem decisão da gerência. Enquanto estiverem aqui, o Claude segue a regra
 | Data | Versão das regras | O que mudou neste guia |
 |---|---|---|
 | 27/11/2026 | 1.5 | Criação do guia |
+| 27/11/2026 | 1.5 | Item PENDENTE: trocas de bateria (+15 min no N1), pedido pelo Gestor. Arquivo 5 com a lista completa de conhecimento |
 | 27/11/2026 | 1.5 | Seção 4: timeout vem de `tempo_maximo_min` (cadastro `tarefas`), não de `TIMEOUT_MS`; tabela `conflitos` incluída em `db/schema.sql` |

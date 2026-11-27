@@ -539,7 +539,23 @@ O Programa de Bonificacao por Niveis (N1 Assiduidade, N2 Produtividade, N3 Excel
 
 - **Comece por `bonificacao/CLAUDE.md`**: explica o que e importante, o que nao pode ser quebrado e como registrar mudancas.
 - O Claude le esse guia no inicio de cada relatorio, fechamento ou rotina. Mudancas pedidas pela gerencia entram na secao "Mudancas para o Claude aplicar" do guia.
-- **Mudancas no app tambem podem afetar a bonificacao** (estrutura das tabelas em `db/schema.sql`, nomes das tarefas, `TIMEOUT_MS`, calculo de `volumes_proporcionais`, gravacao de alertas, importacao do WMS, indices). A lista completa esta na secao 4 do guia. Ao mexer nesses pontos, registre no guia.
+- **Mudancas no app tambem podem afetar a bonificacao** (estrutura das tabelas em `db/schema.sql`, nomes das tarefas, tempo maximo das tarefas (`tempo_maximo_min`, que define o timeout), calculo de `volumes_proporcionais`, gravacao de alertas, importacao do WMS, indices). A lista completa esta na secao 4 do guia. Ao mexer nesses pontos, registre no guia.
+
+Arquivos da pasta:
+
+| Arquivo | O que e |
+|---|---|
+| `CLAUDE.md` | Guia: o que nao pode quebrar, dependencias com o app e mudancas pendentes |
+| `1_descricao_e_instrucoes.md` | Descricao e instrucoes do projeto no claude.ai |
+| `2_regras_de_calculo.md` | Regras oficiais de calculo (versao 1.5) e historico de decisoes |
+| `3_dicionario_de_dados.md` | Tabelas e colunas do banco |
+| `4_modelo_relatorio_pdf.md` | Modelo do PDF individual |
+| `5_como_criar_o_projeto.md` | Passo a passo para montar o projeto no claude.ai |
+| `6_padrao_relatorio_performance.md` / `7_gerador_relatorio_performance.py` | Procedimento e gerador do relatorio individual |
+| `8_rotina_conflitos_alertas.md` / `.py` | Rotina diaria (06:00) que grava conflitos e alertas |
+| `9_fechamento_equipe.md` / `9_gerador_resumo_equipe.py` | Fechamento mensal da equipe (resumo do RH, impressao e conferencia) |
+
+Pendente no guia: as trocas de bateria (`bat_trocas`, 15 min por troca so no N1) ja estao no banco, mas ainda nao fazem parte das regras de calculo 1.5. O item esta registrado como `PENDENTE` em `bonificacao/CLAUDE.md`.
 
 ---
 
@@ -552,7 +568,7 @@ O Programa de Bonificacao por Niveis (N1 Assiduidade, N2 Produtividade, N3 Excel
   `lkp_empilhadeiras`, `lkp_baterias`. Ja aplicado no Turso.
 - O sistema Ger_Baterias (repositorio proprio) envia cada troca ao banco; registro pelo QR nao muda.
 - Historico e Raio X mostram "Troca de bateria" (15 min por troca); filtro de tarefa com a opcao.
-- Bonificacao: cada troca soma 15 min ao N1.
+- Bonificacao: cada troca soma 15 min ao N1 (regra ainda pendente no projeto de bonificacao, ver `bonificacao/CLAUDE.md`).
 
 **Arquivos:** `db/schema.sql`, `js/backend.js`, `js/desktop.js`, `js/config.js`, `service-worker.js`,
 4 HTMLs (`?v=1.3.0`), `README.md`.

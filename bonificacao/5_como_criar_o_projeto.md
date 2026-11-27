@@ -19,15 +19,25 @@ claude.ai > Configurações > Recursos (Capabilities) > ativar "Execução de c�
    - 4_modelo_relatorio_pdf.md
    - 6_padrao_relatorio_performance.md (procedimento obrigatório do relatório)
    - 7_gerador_relatorio_performance.py (código que gera o PDF)
+   - 8_rotina_conflitos_alertas.md (procedimento da rotina diária de conflitos e alertas)
+   - 8_rotina_conflitos_alertas.py (script da rotina diária)
+   - 9_fechamento_equipe.md (procedimento do Desempenho da Equipe)
+   - 9_gerador_resumo_equipe.py (código do resumo do RH, impressão e conferência)
+   - Documento "Programa de Bonificação por Níveis" (política oficial)
+   - Os arquivos 6 a 9 ficam dentro de uma pasta `claude/` no conhecimento do projeto.
 
-## 4. Em cada conversa
+## 4. Tarefa agendada da rotina diária
+Criar no claude.ai a tarefa agendada "Rotina diária de conflitos e alertas", todos os dias às 06:00 (Brasília), pedindo para seguir o arquivo 8_rotina_conflitos_alertas.md. Ela é a única rotina com permissão de escrita no banco (INSERT em `conflitos` e `alertas` e UPDATE de `conflitos.id_alerta`).
+
+## 5. Em cada conversa
 - Ative o conector Turso no menu de ferramentas da conversa (ícone de ferramentas/conectores).
 - Exemplos de pedidos:
   - "Apure os níveis de todos os funcionários em novembro/2026."
   - "Gere o PDF de performance do PL33 em novembro/2026."
   - "Liste os conflitos entre os sistemas em novembro/2026."
+  - "Rode o Desempenho da Equipe de novembro/2026."
 
 ## Cuidados
-- O conector da Turso também consegue alterar e apagar bancos. As instruções proíbem isso, mas confira sempre o que o Claude pede para executar e não aprove ações de escrita.
+- O conector da Turso também consegue alterar e apagar bancos. As instruções proíbem isso (exceto a rotina diária de conflitos), mas confira sempre o que o Claude pede para executar e não aprove ações de escrita.
 - Sempre que alguém registrar alertas, atualizar cadastros ou importar o WMS, os dados novos já aparecem para o projeto (ele consulta o banco na hora).
-- Mudanças nas regras ou no visual do relatório: pedir ao Claude para atualizar juntos os arquivos 2, 4, 6 e 7 e registrar a decisão no histórico do arquivo 2.
+- Mudanças nas regras ou no visual do relatório: pedir ao Claude para atualizar juntos os arquivos do grupo (seção 3 do CLAUDE.md) e registrar a decisão no histórico do arquivo 2.
