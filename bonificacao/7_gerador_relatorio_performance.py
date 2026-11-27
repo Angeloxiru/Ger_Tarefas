@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 GERADOR PADRÃO DO RELATÓRIO DE PERFORMANCE MENSAL (Bonificação Logística)
+Versão 1.3 (27/11/2026): trocas de bateria das empilhadeiras (tabela bat_trocas, consulta Q7) somam os
+minutos creditados às horas válidas do N1, como a função sem meta "Troca de bateria", sem checagem de
+sobreposição e sem entrar na produtividade do N2.
 Versão 1.2 (25/11/2026): layout para impressão em preto e branco em 1 folha (frente e verso),
 comparação com o mês anterior, conflitos e timeouts só em totais no PDF, anomalias e WMS sem vínculo
 só no resumo da conversa, ajuste do Recebimento (mínimo de 2 min) aplicado mas não exibido.
@@ -30,9 +33,10 @@ Formato do entrada.json (montado a partir das consultas padrão do arquivo 6):
   "app":  {"columns": [...], "rows": [...]},   # resultado da consulta Q3 (colunas por nome)
   "wms":  {"columns": [...], "rows": [...]},   # resultado da consulta Q4 (período com margem de 1 dia antes e depois)
   "alertas": {"columns": [...], "rows": [...]},# resultado da consulta Q5
+  "baterias": {"columns": [...], "rows": [...]},# resultado da consulta Q7 (trocas de bateria); omitir = nenhuma troca
   "anterior": {                                # mês anterior completo (consultas Q3A, Q4A, Q5A); omitir se não houver
     "mes_txt": "Outubro/2026", "periodo_ini": "2026-10-01", "periodo_fim": "2026-11-01",
-    "app": {...}, "wms": {...}, "alertas": {...}
+    "app": {...}, "wms": {...}, "alertas": {...}, "baterias": {...}   # baterias da Q7A
   },
   "ajustes_gerencia": []                       # opcional: textos de ajustes informados na conversa
                                                # (só aparecem no resumo do chat, não no PDF)
@@ -41,6 +45,7 @@ Colunas exigidas (também no bloco "anterior"):
   app:     id_registro, nome_tarefa, status, ini, fim, seg, vol   (cf é calculado aqui; se vier, é ignorado)
   wms:     numero, tarefa, ini, fim, execucao_seg, qtde_itens
   alertas: data_br, descricao, emissor
+  baterias: data_br, empilhadeira, minutos   (opcional; data_hora, se vier, é ignorada)
 """
 import json, os, sys, collections, datetime as dt
 
@@ -70,6 +75,7 @@ N3_MAX_ALERTAS = 3               # N3: menos de 3 alertas
 RECEB_MIN_SEG = 120              # Recebimento < 2 min conta como 2 min (só tempo)
 CONFLITO_MIN_SEG = 300           # conflito: sobreposição app x WMS maior que 5 minutos
 MARGEM_SEG = 24 * 3600           # margem da consulta Q4; nenhuma tarefa do WMS pode durar isso ou mais
+FUNCAO_BAT = "Troca de bateria"  # trocas de bateria (bat_trocas): só N1, sem meta, sem checagem de sobreposição
 # ===============================================================================================
 
 def _fonte():
@@ -175,6 +181,14 @@ def calcular(cfg):
         a = agg[(ini[:10], tar, "WMS")]; a[0] += seg; a[1] += 1; a[2] += itens or 0
         m = mes[tar]; m[0] += seg; m[1] += 1; m[2] += itens or 0; m[3] = "WMS"
 
+    # ---- Trocas de bateria (bat_trocas): minutos creditados somam nas horas do N1, sem sobreposição e sem meta ----
+    bat = linhas(cfg.get("baterias") or {"columns": ["data_br", "empilhadeira", "minutos"], "rows": []}, ["data_br", "empilhadeira", "minutos"])
+    bat = [b for b in bat if no_periodo(b[0])]
+    for data_br, emp, minutos in bat:
+        s = int(minutos or 0) * 60
+        a = agg[(data_br[:10], FUNCAO_BAT, "Bateria")]; a[0] += s; a[1] += 1
+        m = mes[FUNCAO_BAT]; m[0] += s; m[1] += 1; m[3] = "Bateria"
+
     anom_wms = []  # sobreposição WMS x WMS, horários reais
     ws = sorted(wms, key=lambda r: r[2])
     for i, a in enumerate(ws):
@@ -187,6 +201,7 @@ def calcular(cfg):
     total_seg = sum(v[0] for v in mes.values())
     seg_app = sum(v[0] for v in mes.values() if v[3] == "App")
     seg_wms = sum(v[0] for v in mes.values() if v[3] == "WMS")
+    seg_bat = sum(v[0] for v in mes.values() if v[3] == "Bateria")
 
     # ---- Níveis ----
     n1 = total_seg >= N1_MIN_SEG
@@ -212,7 +227,7 @@ def gerar(cfg, pasta):
     PARCIAL = cfg.get("parcial", "")
     OUT = os.path.join(pasta, f"performance_{CRACHA}_{cfg['aaaamm']}.pdf")
     C = calcular(cfg)
-    app, wms, ALERTAS, ajuste, anom_app, anom_wms, agg, mes, conflitos, timeouts, seg_conf, rec_n_aj, rec_seg_add, total_seg, seg_app, seg_wms, n1, n2, n3, avaliadas, s1, s2, s3, wms_por_num = (C[k] for k in "app,wms,ALERTAS,ajuste,anom_app,anom_wms,agg,mes,conflitos,timeouts,seg_conf,rec_n_aj,rec_seg_add,total_seg,seg_app,seg_wms,n1,n2,n3,avaliadas,s1,s2,s3,wms_por_num".split(","))
+    app, wms, ALERTAS, ajuste, anom_app, anom_wms, agg, mes, conflitos, timeouts, seg_conf, rec_n_aj, rec_seg_add, total_seg, seg_app, seg_wms, seg_bat, bat, n1, n2, n3, avaliadas, s1, s2, s3, wms_por_num = (C[k] for k in "app,wms,ALERTAS,ajuste,anom_app,anom_wms,agg,mes,conflitos,timeouts,seg_conf,rec_n_aj,rec_seg_add,total_seg,seg_app,seg_wms,seg_bat,bat,n1,n2,n3,avaliadas,s1,s2,s3,wms_por_num".split(","))
     ANT = calcular(cfg["anterior"]) if cfg.get("anterior") else None
 
     # ================= LAYOUT (impressão em preto e branco, 1 folha frente e verso) =================
@@ -328,7 +343,8 @@ def gerar(cfg, pasta):
                 st_f.append(("SPAN", (5, len(fun)), (6, len(fun))))
             fun.append([f, hm(s), f"{br(q, 0)} {'volumes' if tipo == 'vol' else 'pallets'}", f"{br(prod)} {UN[un]}", f"{br(meta, 0)} {UN[un]}", *res])
         else:
-            fun.append([f, hm(s), f"{br(nt, 0)} {plural(nt, 'tarefa')}", "-", "sem meta", Paragraph("não conta para o N2", P), ""])
+            un_q = plural(nt, 'troca') if f == FUNCAO_BAT else plural(nt, 'tarefa')
+            fun.append([f, hm(s), f"{br(nt, 0)} {un_q}", "-", "sem meta", Paragraph("não conta para o N2", P), ""])
             st_f.append(("SPAN", (5, len(fun) - 1), (6, len(fun) - 1)))
     if outras:
         so, no_ = sum(mes[f][0] for f in outras), sum(mes[f][1] for f in outras)
@@ -390,7 +406,7 @@ def gerar(cfg, pasta):
                   Paragraph(f"<b>{niv_a}</b>. " + " ".join(obs), ParagraphStyle("o5", parent=P, textColor=CZ_ESC, spaceBefore=3))]
 
     # Como as horas foram contadas
-    linhas_h = [["Horas válidas no mês", f"<b>{hm(total_seg)}</b>", f"App Tarefas {hm(seg_app)} + WMS {hm(seg_wms)}"],
+    linhas_h = [["Horas válidas no mês", f"<b>{hm(total_seg)}</b>", f"App Tarefas {hm(seg_app)} + WMS {hm(seg_wms)}" + (f" + Trocas de bateria {hm(seg_bat)} ({len(bat)} {plural(len(bat), 'troca')})" if bat else "")],
                 ["Tarefas do app não contadas por conflito com o WMS", f"<b>{len(conflitos)}</b>",
                  (f"{hm(seg_conf)} não {plural(len(conflitos), 'contada', 'contadas')}. Quando o app e o WMS registram o mesmo horário, vale o WMS."
                   if conflitos else "Nenhuma")],
@@ -505,7 +521,7 @@ def gerar(cfg, pasta):
 
 
     # ---- Resumo para o chat ----
-    r = {"arquivo": OUT, "total": hm(total_seg), "app": hm(seg_app), "wms": hm(seg_wms),
+    r = {"arquivo": OUT, "total": hm(total_seg), "app": hm(seg_app), "wms": hm(seg_wms), "baterias": hm(seg_bat), "baterias_qtd": len(bat),
          "conflito": f"{hm(seg_conf)} ({len(conflitos)})", "timeouts_somados": len(timeouts), "dias": len(dias),
          "N1": s1, "N2": s2, "N3": s3, "alertas": len(ALERTAS),
          "funcoes": [(f, mes[f][3], hm(mes[f][0]), mes[f][1], mes[f][2]) for f in ordem_func],

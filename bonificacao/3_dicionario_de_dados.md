@@ -34,6 +34,19 @@ Um registro por tarefa do app em conflito com o WMS (regra 12: desde 26/11/2026,
 - id_alerta: alerta que usou este conflito; vazio = aguardando completar 3 no mês (sobras de meses passados ficam vazias para sempre).
 Índices: id_registro (único), inicio_sobreposicao, (codigo_func, inicio_sobreposicao).
 
+## bat_trocas (trocas de bateria das empilhadeiras; enviada pelo sistema Ger_Baterias)
+Uma linha por troca. Usada na bonificação desde 27/11/2026 (regra 2: soma minutos_creditados às horas do N1, função "Troca de bateria", sem meta).
+- id_troca: data_hora UTC + '|' + empilhadeira (reenviar não duplica).
+- id_planilha: coluna ID da aba Registros da planilha do Ger_Baterias.
+- data_hora: data e hora da troca (UTC). Define o dia e o mês da troca (em Brasília).
+- codigo_func: crachá de quem fez a troca (mesmo cadastro do app Tarefas).
+- empilhadeira (ex.: N03), bateria_instalada (ex.: BAT05), bateria_removida (vazio se a empilhadeira estava sem bateria).
+- nivel_agua (OK, Atenção, Crítico), duracao_uso_anterior_h (horas de horímetro da bateria removida), horimetro.
+- minutos_creditados: minutos somados às horas do N1 (padrão 15).
+- origem (apps_script ou importado), recebido_em.
+Índices: data_hora, (codigo_func, data_hora), (empilhadeira, data_hora).
+Outras tabelas do Ger_Baterias, não usadas na bonificação: bat_empilhadeiras, bat_baterias.
+
 ## Views úteis
 - vw_registros: registros com nome, carga, doca e duracao_ms.
 - vw_wms_tarefas: tarefas do WMS com nome do funcionário e dia (Brasília).

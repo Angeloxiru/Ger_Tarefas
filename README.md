@@ -547,7 +547,7 @@ Arquivos da pasta:
 |---|---|
 | `CLAUDE.md` | Guia: o que nao pode quebrar, dependencias com o app e mudancas pendentes |
 | `1_descricao_e_instrucoes.md` | Descricao e instrucoes do projeto no claude.ai |
-| `2_regras_de_calculo.md` | Regras oficiais de calculo (versao 1.5) e historico de decisoes |
+| `2_regras_de_calculo.md` | Regras oficiais de calculo (versao 1.6) e historico de decisoes |
 | `3_dicionario_de_dados.md` | Tabelas e colunas do banco |
 | `4_modelo_relatorio_pdf.md` | Modelo do PDF individual |
 | `5_como_criar_o_projeto.md` | Passo a passo para montar o projeto no claude.ai |
@@ -555,7 +555,7 @@ Arquivos da pasta:
 | `8_rotina_conflitos_alertas.md` / `.py` | Rotina diaria (06:00) que grava conflitos e alertas |
 | `9_fechamento_equipe.md` / `9_gerador_resumo_equipe.py` | Fechamento mensal da equipe (resumo do RH, impressao e conferencia) |
 
-Pendente no guia: as trocas de bateria (`bat_trocas`, 15 min por troca so no N1) ja estao no banco, mas ainda nao fazem parte das regras de calculo 1.5. O item esta registrado como `PENDENTE` em `bonificacao/CLAUDE.md`.
+Trocas de bateria na bonificacao (regras 1.6, de 27/11/2026): cada troca em `bat_trocas` soma `minutos_creditados` (15 min) as horas do N1 do funcionario que fez a troca, como a funcao sem meta "Troca de bateria", sem checagem de sobreposicao e sem entrar no N2. Consultas Q7 e Q7A no arquivo 6; o PDF individual mostra a linha "Troca de bateria" e a coluna na grade por dia. O item consta como `APLICADO` em `bonificacao/CLAUDE.md`.
 
 ---
 
@@ -568,7 +568,7 @@ Pendente no guia: as trocas de bateria (`bat_trocas`, 15 min por troca so no N1)
   `lkp_empilhadeiras`, `lkp_baterias`. Ja aplicado no Turso.
 - O sistema Ger_Baterias (repositorio proprio) envia cada troca ao banco; registro pelo QR nao muda.
 - Historico e Raio X mostram "Troca de bateria" (15 min por troca); filtro de tarefa com a opcao.
-- Bonificacao: cada troca soma 15 min ao N1 (regra ainda pendente no projeto de bonificacao, ver `bonificacao/CLAUDE.md`).
+- Bonificacao: cada troca soma 15 min ao N1 (regra 2 das regras de calculo 1.6, aplicada em 27/11/2026; ver `bonificacao/CLAUDE.md`).
 
 **Arquivos:** `db/schema.sql`, `js/backend.js`, `js/desktop.js`, `js/config.js`, `service-worker.js`,
 4 HTMLs (`?v=1.3.0`), `README.md`.

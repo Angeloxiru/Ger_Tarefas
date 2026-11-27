@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 GERADOR PADRÃO DO FECHAMENTO DA EQUIPE (Bonificação Logística)
+Versão 1.1 (27/11/2026): a conferência mostra as horas das trocas de bateria (regra 2 v1.6) junto com App e WMS.
 Versão 1.0 (26/11/2026), aprovada pela gerência.
 
 NÃO ALTERAR cálculos, cores, colunas ou textos sem pedido da gerência. Qualquer mudança aprovada
@@ -263,7 +264,7 @@ def gerar_conferencia(cfg, pasta):
         story.append(Paragraph("Aviso: " + esc(f), P))
     for f in ativos(cfg):
         r = f["resumo"]
-        story.append(Paragraph(f"{esc(f['nome'])} ({f['cracha']}) | {r['total']} (App {r.get('app', '-')} + WMS {r.get('wms', '-')}) | "
+        story.append(Paragraph(f"{esc(f['nome'])} ({f['cracha']}) | {r['total']} (App {r.get('app', '-')} + WMS {r.get('wms', '-')}" + (f" + Trocas de bateria {r['baterias']} ({r.get('baterias_qtd', 0)})" if r.get('baterias_qtd') else "") + f") | "
                                f"N1 {r['N1']}, N2 {r['N2']}, N3 {r['N3']} | {r['alertas']} alertas", H2))
         for tit, chave in (("Conflitos (não contados)", "conflitos_lista"), ("Timeouts (somados)", "timeouts_lista"), ("Anomalias", "anomalias")):
             itens = r.get(chave) or []

@@ -1,6 +1,6 @@
 # Regras de cálculo da bonificação
 
-Versão 1.5 de 26/11/2026, aprovada pela gerência. Estas regras estão implementadas no arquivo `claude/7_gerador_relatorio_performance.py` (relatório), a regra 12 no arquivo `claude/8_rotina_conflitos_alertas.py` (rotina diária) e a regra 13 no arquivo `claude/9_gerador_resumo_equipe.py` (fechamento da equipe). Qualquer mudança aprovada deve ser feita nos arquivos ao mesmo tempo e registrada no histórico ao final.
+Versão 1.6 de 27/11/2026, aprovada pela gerência. Estas regras estão implementadas no arquivo `claude/7_gerador_relatorio_performance.py` (relatório), a regra 12 no arquivo `claude/8_rotina_conflitos_alertas.py` (rotina diária) e a regra 13 no arquivo `claude/9_gerador_resumo_equipe.py` (fechamento da equipe). Qualquer mudança aprovada deve ser feita nos arquivos ao mesmo tempo e registrada no histórico ao final.
 
 ## 1. Período e funcionário
 - Mês civil no horário de Brasília: do dia 1 às 00:00 ao último dia às 23:59.
@@ -12,9 +12,11 @@ Versão 1.5 de 26/11/2026, aprovada pela gerência. Estas regras estão implemen
 |---|---|---|
 | App Tarefas (registros) | status = finalizada ou timeout | data_fim menos data_inicio |
 | WMS (wms_tarefas) | todas | execucao_seg (igual a conclusão menos aceite), com a exceção do Recebimento abaixo |
+| Trocas de bateria (bat_trocas) | todas | minutos_creditados (hoje 15 minutos por troca) |
 
 - Tarefas do app encerradas por timeout ENTRAM no tempo (somar normalmente). O PDF mostra só o total (quantidade e horas somadas); a lista vai no resumo da conversa.
 - Tarefas do app em andamento: não entram.
+- Trocas de bateria das empilhadeiras (tabela bat_trocas, enviada pelo sistema Ger_Baterias): cada troca soma minutos_creditados às horas válidas do funcionário que fez a troca (codigo_func), como a função sem meta "Troca de bateria". Contam só para o N1: não têm meta e não entram na produtividade do N2. O dia e o mês da troca são os de Brasília pela data_hora. Os minutos entram sempre, sem checagem de sobreposição com tarefas do app ou do WMS e sem checagem de conflito (regra 3). Seguem a regra do agrupamento "Outras" como qualquer função (menos de 3h no mês = 12 trocas de 15 minutos).
 - Recebimento (WMS) com duração mínima de 2 minutos: toda tarefa de Recebimento com execucao_seg menor que 120 segundos conta como 120 segundos (2 minutos). Tarefas de Recebimento com 2 minutos ou mais usam o execucao_seg normal. A regra vale só para o Recebimento e só para o tempo (horas válidas e produtividade). O ajuste é feito pelo gerador e NÃO é exibido nem no PDF nem no resumo da conversa.
 - Na checagem de conflito (regra 3) e de sobreposição entre tarefas do WMS, valem sempre os horários reais registrados (dt_aceite e dt_conclusao), sem o ajuste de 2 minutos.
 - Tarefas do WMS do mesmo funcionário não se sobrepõem entre si. Se aparecer algum caso, apontar como anomalia no resumo da conversa, sem descartar. Essa checagem é feita só pelo gerador, com as tarefas do funcionário no período. Nunca checar no banco (regra 10).
@@ -57,11 +59,11 @@ WHERE r.codigo_func = :func AND r.status IN ('finalizada', 'timeout')
 - Volume por hora (Carregamento e Separação Manual): importa o volume movimentado, não o número de tarefas.
 - Pallets por hora (Empilhadeira, Realocação, Armazenagem, Recebimento): importa o número de tarefas, porque o esforço por pallet é o mesmo com 25 ou 100 volumes.
 - Carregamento sem volumes_proporcionais (vazio): as horas entram, o volume conta como zero, e o caso é apontado como anomalia "Carga sem volume" no resumo da conversa.
-- Funções sem meta: Movimentações, Conferência, Limpeza, Avarias, Balança, Chocolate, Inventário cíclico, Armaz. Corte. Contam o tempo para o N1, mas não têm produtividade cobrada no N2. No relatório, mostrar horas e quantidade delas, sem comparar com meta.
+- Funções sem meta: Movimentações, Conferência, Limpeza, Avarias, Balança, Chocolate, Inventário cíclico, Armaz. Corte, Troca de bateria (regra 2). Contam o tempo para o N1, mas não têm produtividade cobrada no N2. No relatório, mostrar horas e quantidade delas, sem comparar com meta.
 - No PDF, toda função com menos de 3h no mês (com ou sem meta) é agrupada em "Outras", porque não conta para o N2. As horas dela continuam somando para o N1.
 
 ## 5. Níveis
-- N1 Assiduidade: soma das horas válidas do mês (app sem conflitos, com as tarefas encerradas por timeout incluídas, + WMS) ≥ 100h.
+- N1 Assiduidade: soma das horas válidas do mês (app sem conflitos, com as tarefas encerradas por timeout incluídas, + WMS + trocas de bateria) ≥ 100h.
 - N2 Produtividade: só se tiver N1. Para cada função COM meta em que o funcionário teve 3h ou mais de horas válidas no mês, a produtividade do mês tem que atingir a meta. Funções com menos de 3h não entram.
   - Funcionário com N1 que não teve nenhuma função com meta com 3h ou mais no mês (ex.: só Conferência e Limpeza) GANHA o N2.
 - N3 Excelência: só se tiver N1 e N2. Menos de 3 alertas no mês (tabela alertas, pela data do alerta em Brasília, mesmo que o fato descrito seja de outro mês). Contam todos os alertas da tabela, inclusive os gravados pela rotina de conflitos (regra 12, emissor PL1). Alertas contestados e aceitos são removidos da tabela pela gerência.
@@ -72,7 +74,7 @@ Período de experiência (90 dias), férias, atestados, faltas e falhas de siste
 
 ## 7. Mês incompleto
 - Antes de calcular, conferir a quantidade de tarefas do WMS por dia no mês (consulta Q2 do arquivo 6, uma vez por mês; no fechamento da equipe, QE1 do arquivo 9). Se o mês não terminou ou se algum dia útil tem volume muito abaixo do normal, avisar a gerência e perguntar como seguir (cortar no último dia completo, usar tudo o que existe ou esperar). No fechamento da equipe não existe corte parcial (regra 13).
-- Relatório parcial: os dois sistemas (app e WMS) são cortados na mesma data. Os alertas também valem só até essa data. O PDF leva no nome do mês a indicação "(parcial: dd a dd/mm)" e uma faixa de aviso no topo da página 1 dizendo que os níveis refletem só o período e não são o resultado final do mês.
+- Relatório parcial: os dois sistemas (app e WMS) são cortados na mesma data. Os alertas e as trocas de bateria também valem só até essa data. O PDF leva no nome do mês a indicação "(parcial: dd a dd/mm)" e uma faixa de aviso no topo da página 1 dizendo que os níveis refletem só o período e não são o resultado final do mês.
 
 ## 8. Anomalias (apontadas no resumo da conversa, sem descartar dados; não vão ao PDF)
 - "App x App": sobreposição entre tarefas válidas do app (regra 2).
@@ -87,12 +89,12 @@ Período de experiência (90 dias), férias, atestados, faltas e falhas de siste
 A Turso cobra por linha lida, inclusive as linhas percorridas e descartadas. Para não gastar leituras à toa:
 - Nunca juntar `wms_tarefas` ou `registros` com a própria tabela no banco (self-join). Em 24/11/2026, uma consulta assim, sem filtro e rodada 3 vezes, leu 168.139.239 linhas.
 - Nunca calcular conflito ou sobreposição no banco. Esses cálculos são feitos só pelo gerador (relatório) e pelo script da rotina diária (regra 12).
-- Toda consulta às tabelas `wms_tarefas`, `registros`, `cargas` e `alertas` filtra por funcionário e período, pelas colunas originais com índice, em UTC. Exceções, só com filtro de período: Q2 e Q6 (arquivo 6) e, no fechamento da equipe, QE1 e QE2 (arquivo 9), que substituem a Q2 e a Q6 e leem as mesmas linhas.
+- Toda consulta às tabelas `wms_tarefas`, `registros`, `cargas`, `alertas` e `bat_trocas` filtra por funcionário e período, pelas colunas originais com índice, em UTC (em `bat_trocas`: `codigo_func` e `data_hora`). Exceções, só com filtro de período: Q2 e Q6 (arquivo 6) e, no fechamento da equipe, QE1 e QE2 (arquivo 9), que substituem a Q2 e a Q6 e leem as mesmas linhas.
 - Não usar views nos relatórios e não rodar consultas exploratórias fora dos procedimentos dos arquivos 6, 8 e 9. Uma view comum não guarda resultado: ler por ela lê as mesmas linhas das tabelas (ou mais), por isso não serve para economizar leituras.
 - O banco é só leitura. Única exceção: a rotina diária de conflitos (regra 12) pode fazer INSERT em `conflitos` e `alertas` e UPDATE de `conflitos.id_alerta`, seguindo o arquivo 8.
 
 ## 11. Comparação com o mês anterior
-- O relatório compara o mês apurado com o mês civil anterior completo do mesmo funcionário, calculado pelo gerador com as mesmas regras (2 a 5), a partir das consultas Q3A, Q4A e Q5A do arquivo 6.
+- O relatório compara o mês apurado com o mês civil anterior completo do mesmo funcionário, calculado pelo gerador com as mesmas regras (2 a 5), a partir das consultas Q3A, Q4A, Q5A e Q7A do arquivo 6. As trocas de bateria entram nos dois meses.
 - Compara: total de horas válidas, horas de cada função com 3h ou mais em pelo menos um dos dois meses (o resto em "Outras"), produtividade das funções avaliadas no N2 nos dois meses, quantidade de alertas e os níveis do mês anterior.
 - Variação: só seta e valor (↑ aumentou, ↓ diminuiu, = igual). O relatório não usa palavras de avaliação como "melhorou" ou "piorou" em nenhum lugar.
 - Sem dados do mês anterior (funcionário novo, ou mês anterior sem nenhuma hora válida): o PDF mostra "Sem dados do mês anterior para comparação."
@@ -121,7 +123,7 @@ A Turso cobra por linha lida, inclusive as linhas percorridas e descartadas. Par
 - Nível final para a contagem do RH: o nível mais alto conquistado (N3, N2, N1 ou sem bonificação). Cada funcionário conta em um só grupo.
 - Motivo no resumo do RH: só o primeiro nível não conquistado (os seguintes ficam bloqueados).
 - Mês anterior no resumo do RH: só o nível do funcionário no mês anterior, calculado com as regras atuais (pode diferir do que foi pago, porque não inclui os ajustes da gerência daquele mês nem regras antigas). Sem valor em R$ e sem comparação nos cartões.
-- Consultas: QE1 e QE2 no lugar da Q2 e da Q6 (regra 10); Q4 e Q4A um funcionário por vez; as demais consultas do arquivo 6 em uma só consulta com `IN (...)`.
+- Consultas: QE1 e QE2 no lugar da Q2 e da Q6 (regra 10); Q4 e Q4A um funcionário por vez; as demais consultas do arquivo 6 (inclusive Q7 e Q7A, trocas de bateria) em uma só consulta com `IN (...)`.
 
 ## Histórico de decisões
 | Data | Decisão |
@@ -140,3 +142,4 @@ A Turso cobra por linha lida, inclusive as linhas percorridas e descartadas. Par
 | 25/11/2026 | Regra 12 (v1.3): alerta automático a cada 3 conflitos no mês, gravado por rotina diária às 06:00 (tabela `conflitos`, emissor PL1, data do alerta = início da sobreposição do 3º conflito, contagem zera no fim do mês, janela de 5 dias). Autorizada escrita no banco só para essa rotina. Novembro/2026 processado desde o dia 1. |
 | 26/11/2026 | Regra 12 (v1.4), pedido da gerência: na rotina diária, conflito passa a ser a SOMA do tempo em comum com todas as tarefas do WMS (mais de 5 min no total); registra a tarefa do WMS de maior sobreposição; data do conflito = início do primeiro trecho em comum. Vale daqui para frente (execução de 27/11 em diante, janela de 5 dias), sem reprocessar novembro. A regra 3 do relatório de performance NÃO mudou. Arquivo 8 atualizado para a v1.1. |
 | 26/11/2026 | Regra 13 (v1.5), pedido da gerência: fechamento mensal "Desempenho da Equipe" (arquivo 9 e gerador 9). Entram todos com tarefas no mês (ativos e inativos); só mês completo; PDF único de impressão em ordem alfabética; resumo do RH colorido por e-mail com cartões por nível, nomes por nível, ✔/✘/– por nível, valor e motivo, e só o nível do mês anterior; arquivo de conferência interno separado; valores N1 R$ 50, N2 +R$ 100, N3 +R$ 150 (acumulados); retirada pela gerência sem menção. Regra 10: QE1 e QE2 como exceções (substituem Q2 e Q6); Q4 e Q4A um funcionário por vez. Gerência avaliou view para reduzir leituras: descartada (view não guarda resultado), assim como tabela de resumo diária (exigiria nova escrita no banco). |
+| 27/11/2026 | Regra 2 (v1.6), pedido do Gestor (item do guia do GitHub de 27/11/2026, confirmado na conversa): trocas de bateria das empilhadeiras (tabela `bat_trocas`) somam `minutos_creditados` (15 min) às horas do N1 do funcionário que fez a troca, como função sem meta "Troca de bateria"; não entram no N2; mês e dia pela `data_hora` em Brasília. Decisões da gerência na mesma data: linha própria na tabela de funções e coluna na grade do PDF, seguindo o agrupamento "Outras" (menos de 3h); minutos somados sempre, sem checagem de sobreposição; entram também no mês anterior da comparação; o fechamento da equipe busca as trocas com `IN (...)`. Consultas Q7 e Q7A no arquivo 6; `bat_trocas` incluída na regra 10. Gerador 7 v1.3, modelo 4 v1.3, arquivo 6 v1.4, arquivo 9 e gerador 9 v1.1. |
